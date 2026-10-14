@@ -116,5 +116,6 @@ test("accepts frontend and AI frontend titles only", () => {
   assert.equal(isFrontendRole("全栈开发工程师"), false);
   assert.equal(isFrontendRole("前端开发工程师（2027届秋招）"), false);
   assert.equal(isFrontendRole("后端开发工程师"), false);
+  assert.equal(isFrontendRole("大模型标注评测工程师-前端方向"), false);
   assert.equal(isFrontendRole("客户端开发工程师"), false);
 });

@@ -176,6 +176,7 @@ export async function getJobDetail(id: string): Promise<JobDetail | null> {
 export const getCompanyDirectory = cache(async (): Promise<CompanyCard[]> => {
   await connection();
   const companies = await getPrisma().company.findMany({
+    where: { active: true },
     orderBy: { displayName: "asc" },
     include: {
       sources: {

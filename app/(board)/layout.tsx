@@ -1,18 +1,21 @@
 import { Suspense } from "react";
 
-import { JobFilters } from "@/components/job-filters";
-import { FilterBarFallback } from "@/components/job-skeletons";
+import { BoardFrame } from "@/components/job-filters";
+import { FilterBarFallback, JobListSkeleton } from "@/components/job-skeletons";
 import { getPrisma } from "@/lib/db/client";
-import { connection } from "next/server";
 
-async function FilterSlot() {
-  await connection();
-  const companies = await getPrisma().company.findMany({
+async function loadFilterCompanies() {
+  "use cache";
+  return getPrisma().company.findMany({
     where: { active: true },
     orderBy: { displayName: "asc" },
     select: { slug: true, displayName: true },
   });
-  return <JobFilters companies={companies} />;
+}
+
+async function FilterSlot({ children }: { children: React.ReactNode }) {
+  const companies = await loadFilterCompanies();
+  return <BoardFrame companies={companies}>{children}</BoardFrame>;
 }
 
 export default function BoardLayout({ children }: { children: React.ReactNode }) {
@@ -25,10 +28,18 @@ export default function BoardLayout({ children }: { children: React.ReactNode })
           只收录中国大陆公司的社会招聘，岗位限于前端和 AI 前端，职位要求为中文。申请按钮只指向官方页面。
         </p>
       </header>
-      <Suspense fallback={<FilterBarFallback />}>
-        <FilterSlot />
+      <Suspense
+        fallback={
+          <div>
+            <FilterBarFallback />
+            <div className="mt-6">
+              <JobListSkeleton />
+            </div>
+          </div>
+        }
+      >
+        <FilterSlot>{children}</FilterSlot>
       </Suspense>
-      <div className="mt-6">{children}</div>
     </div>
   );
 }

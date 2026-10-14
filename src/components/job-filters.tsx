@@ -2,8 +2,9 @@
 
 import { Check, ChevronDown } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useId, useRef, useState } from "react";
+import { Suspense, useEffect, useId, useRef, useState, useTransition, type ReactNode, type TransitionStartFunction } from "react";
 
+import { JobListSkeleton } from "@/components/job-skeletons";
 import { Input } from "@/components/ui/input";
 import { boardHref } from "@/lib/format";
 import { cn } from "cn";
@@ -13,7 +14,29 @@ export type FilterCompany = {
   displayName: string;
 };
 
-export function JobFilters({ companies }: { companies: FilterCompany[] }) {
+export function BoardFrame({ companies, children }: { companies: FilterCompany[]; children: ReactNode }) {
+  const [pending, startTransition] = useTransition();
+  return (
+    <>
+      <JobFilters companies={companies} startTransition={startTransition} />
+      <div className="mt-6" aria-busy={pending}>
+        {pending ? (
+          <JobListSkeleton />
+        ) : (
+          <Suspense fallback={<JobListSkeleton />}>{children}</Suspense>
+        )}
+      </div>
+    </>
+  );
+}
+
+export function JobFilters({
+  companies,
+  startTransition,
+}: {
+  companies: FilterCompany[];
+  startTransition: TransitionStartFunction;
+}) {
   const router = useRouter();
   const params = useSearchParams();
   const urlQ = params.get("q") ?? "";
@@ -41,15 +64,19 @@ export function JobFilters({ companies }: { companies: FilterCompany[] }) {
     const trimmed = { q: q.trim(), company, location: location.trim() };
     if (trimmed.q === urlQ && trimmed.company === urlCompany && trimmed.location === urlLocation) return;
     const handle = window.setTimeout(() => {
-      router.replace(boardHref(trimmed), { scroll: false });
+      startTransition(() => {
+        router.replace(boardHref(trimmed), { scroll: false });
+      });
     }, 280);
     return () => window.clearTimeout(handle);
-  }, [q, location, company, urlQ, urlCompany, urlLocation, router]);
+  }, [q, location, company, urlQ, urlCompany, urlLocation, router, startTransition]);
 
   function replaceNow(next: { q: string; company: string; location: string }) {
     const trimmed = { q: next.q.trim(), company: next.company, location: next.location.trim() };
     if (trimmed.q === urlQ && trimmed.company === urlCompany && trimmed.location === urlLocation) return;
-    router.replace(boardHref(trimmed), { scroll: false });
+    startTransition(() => {
+      router.replace(boardHref(trimmed), { scroll: false });
+    });
   }
 
   function chooseCompany(slug: string) {
@@ -71,7 +98,9 @@ export function JobFilters({ companies }: { companies: FilterCompany[] }) {
               setQ("");
               setLocation("");
               setCompany("");
-              router.replace("/", { scroll: false });
+              startTransition(() => {
+                router.replace("/", { scroll: false });
+              });
             }}
           >
             清除
