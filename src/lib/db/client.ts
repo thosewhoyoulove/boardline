@@ -1,4 +1,4 @@
-import { copyFileSync, existsSync } from "node:fs";
+import { copyFileSync, existsSync, statSync } from "node:fs";
 import path from "node:path";
 
 import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
@@ -16,17 +16,18 @@ export function isPostgresUrl(url: string): boolean {
 }
 
 function sqliteUrlForRuntime(url: string): string {
-  if (!process.env.VERCEL) return url;
+  // `vercel deploy` sets VERCEL while it builds locally. Read the project database
+  // during that build. /tmp is only for the read-only serverless filesystem.
+  if (!process.env.VERCEL || process.env.NEXT_PHASE === "phase-production-build") return url;
 
-  // Serverless disks are read-only. Copy the bundled snapshot to /tmp so SQLite can open it.
   const target = "/tmp/boardline.db";
-  if (!existsSync(target)) {
-    const source = [path.join(process.cwd(), "dev.db"), path.join(process.cwd(), "prisma", "dev.db")].find(
-      (candidate) => existsSync(candidate),
-    );
-    if (!source) {
-      throw new Error("Vercel 函数里没有找到 dev.db 职位快照");
-    }
+  const source = [path.join(process.cwd(), "dev.db"), path.join(process.cwd(), "prisma", "dev.db")].find((candidate) =>
+    existsSync(candidate),
+  );
+  if (!source) {
+    throw new Error("Vercel 函数里没有找到 dev.db 职位快照");
+  }
+  if (!existsSync(target) || statSync(source).mtimeMs > statSync(target).mtimeMs) {
     copyFileSync(source, target);
   }
   return "file:/tmp/boardline.db";
