@@ -14,7 +14,18 @@ export async function JobBoard({
 }) {
   const params = await searchParams;
   const filters = readFilters(params);
-  const board = await getJobBoard(filters);
+  let board;
+  try {
+    board = await getJobBoard(filters);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "读取职位失败";
+    return (
+      <div className="rounded-2xl border bg-card px-5 py-8">
+        <h2 className="font-display text-3xl">职位暂时读不出来</h2>
+        <p className="mt-3 text-sm leading-6 text-muted-foreground">{message}</p>
+      </div>
+    );
+  }
   const companyName = board.companies.find((company) => company.slug === filters.company)?.displayName;
   const hasFilters = Boolean(filters.q || filters.company || filters.location);
 

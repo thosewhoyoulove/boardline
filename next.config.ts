@@ -10,6 +10,11 @@ const nextConfig: NextConfig = {
     "pg",
     "sanitize-html",
   ],
+  outputFileTracingIncludes: {
+    "/": ["./dev.db"],
+    "/companies": ["./dev.db"],
+    "/jobs/[id]": ["./dev.db"],
+  },
   turbopack: {
     rules: {
       "*.css": {

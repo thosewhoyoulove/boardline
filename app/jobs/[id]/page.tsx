@@ -2,11 +2,16 @@ import { Suspense } from "react";
 import type { Metadata } from "next";
 
 import { JobArticle, JobArticleFallback } from "@/components/job-article";
-import { getJobDetail } from "@/lib/db/queries";
+import { getJobDetail, listStaticJobIds } from "@/lib/db/queries";
 
 type JobPageProps = {
   params: Promise<{ id: string }>;
 };
+
+export async function generateStaticParams() {
+  const ids = await listStaticJobIds();
+  return ids.map((id) => ({ id }));
+}
 
 export async function generateMetadata({ params }: JobPageProps): Promise<Metadata> {
   const { id } = await params;

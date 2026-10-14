@@ -131,8 +131,17 @@ export const getJobBoard = cache(async (filters: JobFilters): Promise<JobBoardDa
   };
 });
 
-export const getJobDetail = cache(async (id: string): Promise<JobDetail | null> => {
-  await connection();
+export async function listStaticJobIds(): Promise<string[]> {
+  const jobs = await getPrisma().job.findMany({
+    where: { isActive: true },
+    select: { id: true },
+  });
+  return jobs.map((job) => job.id);
+}
+
+// Cached at build time so each known job is a complete page, not a Vercel partial shell.
+export async function getJobDetail(id: string): Promise<JobDetail | null> {
+  "use cache";
   const job = await getPrisma().job.findUnique({
     where: { id },
     include: {
@@ -160,7 +169,7 @@ export const getJobDetail = cache(async (id: string): Promise<JobDetail | null> 
     sourceType: job.source.sourceType,
     referralUrl: job.company.referralUrl,
   };
-});
+}
 
 export const getCompanyDirectory = cache(async (): Promise<CompanyCard[]> => {
   await connection();
