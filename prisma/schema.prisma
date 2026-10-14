@@ -1,0 +1,70 @@
+// Local MVP uses SQLite. To switch to Postgres/Neon, change provider to
+// "postgresql", point DATABASE_URL at Neon, then create a fresh migration.
+// See README.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model Company {
+  id          String       @id @default(cuid())
+  slug        String       @unique
+  displayName String
+  referralUrl String?
+  active      Boolean      @default(true)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  sources     DataSource[]
+  jobs        Job[]
+
+  @@map("companies")
+}
+
+model DataSource {
+  id              String   @id @default(cuid())
+  companyId       String
+  company         Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  sourceType      String
+  recruitmentType String
+  config          Json
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  jobs            Job[]
+
+  @@index([companyId])
+  @@index([sourceType])
+  @@map("data_sources")
+}
+
+model Job {
+  id              String     @id @default(cuid())
+  companyId       String
+  company         Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  sourceId        String
+  source          DataSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  uniqueKey       String     @unique
+  title           String
+  category        String?
+  locations       Json
+  descriptionHtml String?
+  descriptionText String?
+  officialUrl     String
+  publishTime     DateTime?
+  firstSeenAt     DateTime   @default(now())
+  lastSeenAt      DateTime   @default(now())
+  isActive        Boolean    @default(true)
+  contentHash     String
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  @@index([companyId, isActive])
+  @@index([sourceId, isActive])
+  @@index([publishTime])
+  @@map("jobs")
+}
