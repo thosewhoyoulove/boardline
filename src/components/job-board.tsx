@@ -162,7 +162,7 @@ function ScrapeHint() {
     <div className="rounded-2xl border bg-card px-5 py-8 sm:px-8">
       <h2 className="font-display text-3xl tracking-tight">库里还没有职位</h2>
       <p className="mt-3 max-w-xl text-sm leading-6 text-muted-foreground">
-        先迁移数据库，再抓取公开的 Ashby 职位板。没有外网时可以用仓库里的样例 JSON。
+        先迁移数据库，再抓取腾讯、字节跳动和美团的公开职位。没有外网时可以用仓库里的中文样例。
       </p>
       <pre className="mt-5 overflow-x-auto rounded-xl bg-foreground px-4 py-3 text-sm text-background">
         npx prisma migrate dev{"\n"}npm run scrape

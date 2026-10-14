@@ -1,9 +1,20 @@
-import { demoCompanies } from "@/lib/db/demo-companies";
+import { demoCompanies, retiredDemoSlugs } from "@/lib/db/demo-companies";
 import { getPrisma } from "@/lib/db/client";
 
 export async function ensureDemoCompanies(): Promise<{ companies: number; sourcesCreated: number }> {
   const prisma = getPrisma();
   let sourcesCreated = 0;
+
+  if (retiredDemoSlugs.length > 0) {
+    await prisma.company.updateMany({
+      where: { slug: { in: [...retiredDemoSlugs] } },
+      data: { active: false },
+    });
+    await prisma.dataSource.updateMany({
+      where: { company: { slug: { in: [...retiredDemoSlugs] } } },
+      data: { isActive: false },
+    });
+  }
 
   for (const demo of demoCompanies) {
     const company = await prisma.company.upsert({
@@ -14,11 +25,15 @@ export async function ensureDemoCompanies(): Promise<{ companies: number; source
         referralUrl: demo.referralUrl,
         active: true,
       },
-      update: {},
+      update: {
+        displayName: demo.displayName,
+        referralUrl: demo.referralUrl,
+        active: true,
+      },
     });
 
     const existing = await prisma.dataSource.findFirst({
-      where: { companyId: company.id, sourceType: "ashby_api" },
+      where: { companyId: company.id, sourceType: demo.sourceType },
       select: { id: true },
     });
 
@@ -26,9 +41,9 @@ export async function ensureDemoCompanies(): Promise<{ companies: number; source
       await prisma.dataSource.create({
         data: {
           companyId: company.id,
-          sourceType: "ashby_api",
+          sourceType: demo.sourceType,
           recruitmentType: demo.recruitmentType,
-          config: { boardSlug: demo.boardSlug },
+          config: demo.config,
           isActive: true,
         },
       });

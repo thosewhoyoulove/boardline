@@ -28,6 +28,9 @@ export function recruitmentLabel(value: string): string {
 
 export function sourceLabel(value: string): string {
   if (value === "ashby_api") return "Ashby 公开接口";
+  if (value === "tencent_api") return "腾讯招聘公开接口";
+  if (value === "bytedance_api") return "字节跳动招聘公开接口";
+  if (value === "meituan_api") return "美团招聘公开接口";
   return value;
 }
 

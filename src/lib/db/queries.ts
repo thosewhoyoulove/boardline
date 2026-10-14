@@ -133,7 +133,7 @@ export const getJobBoard = cache(async (filters: JobFilters): Promise<JobBoardDa
 
 export async function listStaticJobIds(): Promise<string[]> {
   const jobs = await getPrisma().job.findMany({
-    where: { isActive: true },
+    where: { isActive: true, company: { active: true } },
     select: { id: true },
   });
   return jobs.map((job) => job.id);

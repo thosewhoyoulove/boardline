@@ -1,0 +1,16 @@
+{
+  "data": {
+    "job_post_list": [
+      {
+        "id": "sample-bytedance-chip",
+        "title": "良率工程师",
+        "description": "负责新产品导入和量产良率分析。\n协调研发、工艺和质量团队解决问题。",
+        "requirement": "本科及以上学历，3年以上晶圆工艺经验。\n熟悉集成电路生产流程，能用中文撰写分析报告。",
+        "job_category": { "name": "硬件", "i18n_name": "硬件" },
+        "city_info": { "name": "北京", "i18n_name": "北京" },
+        "city_list": [{ "name": "北京", "i18n_name": "北京" }, { "name": "上海", "i18n_name": "上海" }],
+        "publish_time": 1791535405262
+      }
+    ]
+  }
+}

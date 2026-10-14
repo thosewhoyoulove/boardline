@@ -1,0 +1,135 @@
+import { fetchJson, readJsonFixture, sleep } from "@/lib/crawlers/public-json";
+import { buildChineseJob, parseChineseDate, readPageSize } from "@/lib/crawlers/text";
+import type { AdapterContext, AdapterFetchResult, CrawlerAdapter, NormalizedJob } from "@/lib/crawlers/types";
+
+const SOURCE_TYPE = "tencent_api";
+const SCOPE = "social";
+const FIXTURE = "fixtures/cn/tencent.sample.json";
+const DETAIL_GAP_MS = 500;
+
+type TencentPost = {
+  PostId?: string;
+  RecruitPostName?: string;
+  CountryName?: string;
+  LocationName?: string;
+  CategoryName?: string;
+  ProductName?: string;
+  Responsibility?: string;
+  Requirement?: string;
+  LastUpdateTime?: string;
+  PostURL?: string;
+};
+
+function asPost(value: unknown): TencentPost | null {
+  if (!value || typeof value !== "object") return null;
+  return value as TencentPost;
+}
+
+export function normalizeTencentPost(value: unknown): NormalizedJob | null {
+  const post = asPost(value);
+  if (!post?.PostId || !post.RecruitPostName) return null;
+  if (post.CountryName && post.CountryName !== "中国") return null;
+
+  const postId = post.PostId.trim();
+  const upgraded = post.PostURL?.trim().replace(/^http:\/\//i, "https://");
+  const officialUrl =
+    upgraded && upgraded.startsWith("https://careers.tencent.com/")
+      ? upgraded
+      : `https://careers.tencent.com/jobdesc.html?postId=${encodeURIComponent(postId)}`;
+
+  return buildChineseJob({
+    sourceType: SOURCE_TYPE,
+    scope: SCOPE,
+    externalId: postId,
+    title: post.RecruitPostName,
+    category: post.CategoryName || post.ProductName || null,
+    locations: [post.LocationName],
+    responsibility: post.Responsibility,
+    requirement: post.Requirement,
+    officialUrl,
+    publishTime: parseChineseDate(post.LastUpdateTime),
+  });
+}
+
+export function normalizeTencentPosts(values: unknown[]): NormalizedJob[] {
+  const jobs: NormalizedJob[] = [];
+  for (const value of values) {
+    const job = normalizeTencentPost(value);
+    if (job) jobs.push(job);
+  }
+  if (values.length > 0 && jobs.length === 0) {
+    throw new Error("腾讯返回了职位，但没有中文职位要求可收录");
+  }
+  return jobs;
+}
+
+async function loadFixture(note: string): Promise<AdapterFetchResult> {
+  const payload = await readJsonFixture(FIXTURE);
+  const posts = payload && typeof payload === "object" ? (payload as { posts?: unknown }).posts : null;
+  if (!Array.isArray(posts)) throw new Error(`没有可用的离线样例 ${FIXTURE}`);
+  return { jobs: normalizeTencentPosts(posts), authoritative: false, note };
+}
+
+async function fetchLive(pageSize: number): Promise<AdapterFetchResult> {
+  const listUrl = new URL("https://careers.tencent.com/tencentcareer/api/post/Query");
+  listUrl.searchParams.set("pageIndex", "1");
+  listUrl.searchParams.set("pageSize", String(pageSize));
+  listUrl.searchParams.set("language", "zh-cn");
+  listUrl.searchParams.set("area", "cn");
+
+  const list = (await fetchJson(listUrl.toString(), {
+    headers: { referer: "https://careers.tencent.com/search.html" },
+  })) as { Data?: { Posts?: unknown[] } };
+  const posts = list.Data?.Posts;
+  if (!Array.isArray(posts)) throw new Error("腾讯职位列表缺少 Data.Posts");
+
+  const detailed: unknown[] = [];
+  let detailErrors = 0;
+  for (const [index, entry] of posts.entries()) {
+    const post = asPost(entry);
+    if (!post?.PostId || (post.CountryName && post.CountryName !== "中国")) continue;
+    if (index > 0) await sleep(DETAIL_GAP_MS);
+    const detailUrl = new URL("https://careers.tencent.com/tencentcareer/api/post/ByPostId");
+    detailUrl.searchParams.set("postId", post.PostId);
+    detailUrl.searchParams.set("language", "zh-cn");
+    try {
+      const detail = (await fetchJson(detailUrl.toString(), {
+        headers: { referer: `https://careers.tencent.com/jobdesc.html?postId=${post.PostId}` },
+      })) as { Data?: unknown };
+      const merged = asPost(detail.Data) ?? post;
+      detailed.push({ ...post, ...merged, CountryName: post.CountryName });
+    } catch {
+      detailErrors += 1;
+    }
+  }
+
+  if (posts.length > 0 && detailed.length === 0) {
+    throw new Error("腾讯这一页没有可读取的中国职位详情");
+  }
+
+  return {
+    jobs: normalizeTencentPosts(detailed),
+    authoritative: detailErrors === 0,
+    note:
+      detailErrors === 0
+        ? `腾讯招聘公开接口，中国地区社会招聘最近 ${posts.length} 条`
+        : `腾讯详情有 ${detailErrors} 条失败，本次不把缺失职位下线`,
+  };
+}
+
+export const tencentApiAdapter: CrawlerAdapter = {
+  sourceType: SOURCE_TYPE,
+  async fetchJobs(context: AdapterContext): Promise<AdapterFetchResult> {
+    if (context.offline) return loadFixture(`离线样例 ${FIXTURE}`);
+    try {
+      return await fetchLive(readPageSize(context.config));
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : "未知错误";
+      try {
+        return await loadFixture(`接口失败，改用离线样例（${reason}）`);
+      } catch {
+        throw error;
+      }
+    }
+  },
+};

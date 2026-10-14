@@ -12,7 +12,7 @@
     "lint": "eslint",
     "postinstall": "prisma generate",
     "scrape": "tsx scripts/scrape.ts",
-    "test": "tsx --test src/lib/crawlers/ashby_api.test.ts",
+    "test": "tsx --test src/lib/crawlers/ashby_api.test.ts src/lib/crawlers/cn_jobs.test.ts",
     "db:migrate": "prisma migrate dev",
     "db:generate": "prisma generate"
   },

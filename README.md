@@ -34,12 +34,12 @@ npm run scrape
 
 脚本会：
 
-1. 如果还没有示例公司，写入 Linear、Notion、Ashby 三条 `ashby_api` 数据源（社会招聘）。
-2. 按数据源调用适配器。请求之间间隔 800ms，并带上可识别的 User-Agent。
-3. 把职位规范化后按 `uniqueKey`（`ashby_api:{boardSlug}:{jobId}`）upsert。
-4. 实时接口返回的是完整列表时，把这次没出现的职位标成 `isActive = false`。
+1. 写入腾讯、字节跳动、美团三条社会招聘数据源。早期的 Linear、Notion、Ashby 示例会停用，不再抓取。
+2. 按数据源调用适配器。公司之间间隔 800ms，腾讯的职位详情之间再间隔 500ms，并带上可识别的 User-Agent。
+3. 只保留职位要求里含中文的社会招聘，按 `uniqueKey` upsert。
+4. 每次只取各公司最近一页（默认 24 条）。实时接口完整返回这一页时，把该来源里这次没出现的职位标成 `isActive = false`。
 
-没有外网，或公开接口暂时失败时，会改用 `fixtures/ashby/*.sample.json`。样例不是完整列表，因此**不会**把缺失职位下线。也可以强制离线：
+没有外网，或公开接口暂时失败时，会改用 `fixtures/cn/*.sample.json`。样例不是完整列表，因此**不会**把缺失职位下线。也可以强制离线：
 
 ```bash
 npm run scrape -- --offline
@@ -55,21 +55,15 @@ npm run scrape -- --offline
 
 ### 适配器
 
-抓取逻辑在 `src/lib/crawlers/`。`ashby_api` 请求：
+抓取逻辑在 `src/lib/crawlers/`。当前示例来源都不需要登录：
 
-```text
-GET https://api.ashbyhq.com/posting-api/job-board/{boardSlug}
-```
+- `tencent_api`：`GET https://careers.tencent.com/tencentcareer/api/post/Query?area=cn&language=zh-cn`，再用 `ByPostId` 取中文职位要求。申请页是 `https://careers.tencent.com/jobdesc.html?postId=`。
+- `bytedance_api`：先向公开页面要 CSRF，再 `POST https://jobs.bytedance.com/api/v1/search/job/posts`（`portal_type=2` 社会招聘）。申请页是官网职位详情。
+- `meituan_api`：`POST https://zhaopin.meituan.com/api/official/job/getJobList`，`jobType` 为社招。申请页是官网职位详情。
 
-不需要登录。当前公开响应大致为 `{ apiVersion, jobs: [...] }`，职位字段包括 `id`、`title`、`department`、`location`、`secondaryLocations`、`publishedAt`、`applyUrl`、`jobUrl`、`descriptionHtml`、`descriptionPlain`。新增来源时实现 `CrawlerAdapter`，并在 `registry.ts` 注册 `sourceType`。
+`ashby_api` 仍保留，请求 `GET https://api.ashbyhq.com/posting-api/job-board/{boardSlug}`。新增来源时实现 `CrawlerAdapter`，并在 `registry.ts` 注册 `sourceType`。
 
-要再加一家使用 Ashby 的公司，插入 `companies` 和 `dataSources` 即可，`config` 示例：
-
-```json
-{ "boardSlug": "notion" }
-```
-
-`recruitmentType` 取 `social`（社会招聘）或 `campus`（校园招聘）。当前示例都是社会招聘。
+`recruitmentType` 取 `social`（社会招聘）或 `campus`（校园招聘）。当前示例都是社会招聘，并且会丢掉没有中文职位要求的条目。
 
 ### 换到 Postgres / Neon
 
@@ -100,12 +94,12 @@ SQLite 迁移不能直接套到 Postgres。切换时用一套新的迁移：
    npx prisma generate && npx prisma migrate deploy && next build
    ```
 
-Vercel 的 Serverless 文件系统是临时的，不要把 SQLite 文件当成生产库。Hobby 计划可以之后用 Cron 定时抓取，但触发地址必须校验密钥，避免公开接口被拿去反复请求 Ashby。这个 MVP 没有开放抓取 HTTP 接口。
+Vercel 的 Serverless 文件系统是临时的，不要把 SQLite 文件当成生产库。Hobby 计划可以之后用 Cron 定时抓取，但触发地址必须校验密钥，避免公开接口被拿去反复请求招聘方。这个 MVP 没有开放抓取 HTTP 接口。
 
 ### 伦理与使用边界
 
 - 只使用公开、无需登录的招聘接口。不要绕过登录、不要打私有 API、不要无视 `robots.txt` 或服务条款。
-- Ashby 的 posting API 是给招聘板用的公开 JSON。即便如此，也要限速、串行请求，并在 User-Agent 里说明用途。
+- 腾讯、字节跳动、美团和 Ashby 的接口都是各自招聘站使用的公开 JSON。即便如此，也要限速、串行请求，并在 User-Agent 里说明用途。
 - 申请只跳到官方 URL。不要代投、不要伪造内推链接、不要把简历流量引到与招聘方无关的页面。
 - 职位描述里可能有人名或联系方式。不要另做追踪，页面上也不要注入第三方脚本。
 - 如果一家公司要求停止收录，把对应 `dataSources.isActive` 或 `companies.active` 设为 false。
@@ -116,11 +110,11 @@ Vercel 的 Serverless 文件系统是临时的，不要把 SQLite 文件当成�
 npm test
 ```
 
-用提交的 Linear 样例检查规范化、官方链接和脚本标签消毒。
+用提交的样例检查中文职位要求、官方链接和脚本标签消毒。
 
 ### 下一步
 
-- 更多适配器：Greenhouse、Lever 等同样公开的职位板 JSON。
+- 更多大陆公司的公开招聘接口，以及校园招聘。
 - 定时抓取：GitHub Actions，或带 `CRON_SECRET` 的 Vercel Cron。
 - 新职位提醒：对比 `firstSeenAt` / `uniqueKey`，发邮件或 Slack。
 - Postgres 全文检索，替代现在的内存关键词过滤。
@@ -145,15 +139,15 @@ Open [http://localhost:3000](http://localhost:3000). The committed `.env` points
 
 ### Scrape
 
-`npm run scrape` seeds Linear, Notion, and Ashby (`ashby_api`, recruitment type `social`) if they are missing, fetches each active source, and upserts jobs on `uniqueKey` (`ashby_api:{boardSlug}:{jobId}`). Requests are sequential with an 800ms gap and an identifying User-Agent. A full live response marks missing jobs inactive.
+`npm run scrape` seeds Tencent, ByteDance, and Meituan social-hire sources, and deactivates the earlier Linear, Notion, and Ashby demos. It keeps roles whose requirements contain Chinese, upserts them on `uniqueKey`, and treats each live page (default 24 roles) as the current set for that source. Requests are sequential, with an identifying User-Agent.
 
-If the network fails, the adapter falls back to `fixtures/ashby/*.sample.json`. Fixture imports are not authoritative and do not deactivate other rows. Force that path with:
+If the network fails, the adapter falls back to `fixtures/cn/*.sample.json`. Fixture imports are not authoritative and do not deactivate other rows. Force that path with:
 
 ```bash
 npm run scrape -- --offline
 ```
 
-The Ashby adapter calls `GET https://api.ashbyhq.com/posting-api/job-board/{boardSlug}` with no authentication. Add another adapter in `src/lib/crawlers/` and register it in `registry.ts`.
+The seeded adapters call the public career JSON used by each employer's own site: Tencent `Query`/`ByPostId`, ByteDance `search/job/posts`, and Meituan `getJobList`. No login is required. `ashby_api` remains available. Add another adapter in `src/lib/crawlers/` and register it in `registry.ts`.
 
 ### Pages
 

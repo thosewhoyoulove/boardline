@@ -5,30 +5,40 @@ export type DemoCompany = {
   displayName: string;
   referralUrl: string;
   recruitmentType: RecruitmentType;
-  boardSlug: string;
+  sourceType: string;
+  config: { pageSize: number };
 };
 
-/** Public Ashby boards. The posting API does not require authentication. */
+/** Earlier demo boards. Kept in the database but no longer scraped. */
+export const retiredDemoSlugs = ["linear", "notion", "ashby"] as const;
+
+/**
+ * Mainland China employers with a public, unauthenticated career JSON API.
+ * Each source keeps the latest page of social-hire roles whose requirements are in Chinese.
+ */
 export const demoCompanies: DemoCompany[] = [
   {
-    slug: "linear",
-    displayName: "Linear",
-    referralUrl: "https://jobs.ashbyhq.com/linear",
+    slug: "tencent",
+    displayName: "腾讯",
+    referralUrl: "https://careers.tencent.com/search.html",
     recruitmentType: "social",
-    boardSlug: "linear",
+    sourceType: "tencent_api",
+    config: { pageSize: 24 },
   },
   {
-    slug: "notion",
-    displayName: "Notion",
-    referralUrl: "https://jobs.ashbyhq.com/notion",
+    slug: "bytedance",
+    displayName: "字节跳动",
+    referralUrl: "https://jobs.bytedance.com/experienced/position",
     recruitmentType: "social",
-    boardSlug: "notion",
+    sourceType: "bytedance_api",
+    config: { pageSize: 24 },
   },
   {
-    slug: "ashby",
-    displayName: "Ashby",
-    referralUrl: "https://jobs.ashbyhq.com/ashby",
+    slug: "meituan",
+    displayName: "美团",
+    referralUrl: "https://zhaopin.meituan.com/web/social",
     recruitmentType: "social",
-    boardSlug: "ashby",
+    sourceType: "meituan_api",
+    config: { pageSize: 24 },
   },
 ];

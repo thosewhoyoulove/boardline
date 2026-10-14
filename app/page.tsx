@@ -5,7 +5,7 @@ import { JobBoard, JobBoardFallback } from "@/components/job-board";
 
 export const metadata: Metadata = {
   title: "职位",
-  description: "按关键词、公司和地点筛选公开招聘职位。",
+  description: "按关键词、公司和地点筛选中国大陆公司的中文社会招聘。",
 };
 
 export default function HomePage({ searchParams }: PageProps<"/">) {
@@ -15,7 +15,7 @@ export default function HomePage({ searchParams }: PageProps<"/">) {
         <p className="text-xs tracking-[0.18em] text-primary uppercase">公开职位板</p>
         <h1 className="mt-2 font-display text-4xl leading-tight tracking-tight sm:text-5xl">正在公开招聘的职位</h1>
         <p className="mt-3 text-base leading-7 text-muted-foreground">
-          数据来自公司自己的公开招聘接口。打开一条职位，申请按钮只指向官方页面。
+          收录中国大陆公司的社会招聘，职位要求为中文。申请按钮只指向官方页面。
         </p>
       </header>
       <Suspense fallback={<JobBoardFallback />}>

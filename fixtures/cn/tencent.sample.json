@@ -1,0 +1,25 @@
+{
+  "posts": [
+    {
+      "PostId": "sample-tencent-design",
+      "RecruitPostName": "游戏特效设计师",
+      "CountryName": "中国",
+      "LocationName": "深圳",
+      "CategoryName": "设计",
+      "Responsibility": "负责游戏角色特效的设计与制作。\n与策划、角色和程序协作，把方案落到引擎里。",
+      "Requirement": "本科及以上学历，熟悉 Unity 特效模块。\n具备扎实的美术基础，能独立完成中文需求文档中的视觉方案。",
+      "LastUpdateTime": "2026年10月14日",
+      "PostURL": "http://careers.tencent.com/jobdesc.html?postId=sample-tencent-design"
+    },
+    {
+      "PostId": "sample-tencent-english",
+      "RecruitPostName": "English-only role",
+      "CountryName": "中国",
+      "LocationName": "深圳",
+      "CategoryName": "技术",
+      "Responsibility": "Build backend services.",
+      "Requirement": "3 years of experience with distributed systems.",
+      "LastUpdateTime": "2026年10月14日"
+    }
+  ]
+}
