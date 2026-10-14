@@ -2,14 +2,24 @@
   "posts": [
     {
       "PostId": "sample-tencent-design",
-      "RecruitPostName": "游戏特效设计师",
+      "RecruitPostName": "前端开发工程师",
       "CountryName": "中国",
       "LocationName": "深圳",
-      "CategoryName": "设计",
-      "Responsibility": "负责游戏角色特效的设计与制作。\n与策划、角色和程序协作，把方案落到引擎里。",
-      "Requirement": "本科及以上学历，熟悉 Unity 特效模块。\n具备扎实的美术基础，能独立完成中文需求文档中的视觉方案。",
+      "CategoryName": "技术",
+      "Responsibility": "负责业务页面的前端开发与性能优化。\n与设计和后端协作，把方案落到线上。",
+      "Requirement": "本科及以上学历，熟悉 React。\n能独立完成中文需求文档中的前端方案。",
       "LastUpdateTime": "2026年10月14日",
       "PostURL": "http://careers.tencent.com/jobdesc.html?postId=sample-tencent-design"
+    },
+    {
+      "PostId": "sample-tencent-ops",
+      "RecruitPostName": "品类营销运营",
+      "CountryName": "中国",
+      "LocationName": "深圳",
+      "CategoryName": "运营",
+      "Responsibility": "负责活动策划。",
+      "Requirement": "3 年以上运营经验，能写中文方案。",
+      "LastUpdateTime": "2026年10月14日"
     },
     {
       "PostId": "sample-tencent-english",

@@ -1,0 +1,24 @@
+{
+  "data": {
+    "items": [
+      {
+        "jdId": 66767,
+        "jobName": "前端开发工程师",
+        "workArea": "北京市",
+        "jobTypeName": "技术",
+        "jobDuty": "负责 Web 前端开发。",
+        "jobQualification": "4 年以上经验，熟悉 React，能阅读中文需求。",
+        "refreshTime": "2026-10-14"
+      },
+      {
+        "jdId": 66768,
+        "jobName": "全栈研发工程师",
+        "workArea": "北京市",
+        "jobTypeName": "技术",
+        "jobDuty": "负责前后端。",
+        "jobQualification": "有中文文档经验。",
+        "refreshTime": "2026-10-14"
+      }
+    ]
+  }
+}

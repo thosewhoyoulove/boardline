@@ -13,8 +13,9 @@ export type DemoCompany = {
 export const retiredDemoSlugs = ["linear", "notion", "ashby"] as const;
 
 /**
- * Mainland China employers with a public, unauthenticated career JSON API.
- * Each source keeps the latest page of social-hire roles whose requirements are in Chinese.
+ * Mainland employers with a public, unauthenticated social-hire API.
+ * Each source searches for frontend roles and then keeps only 前端 / AI 前端 titles.
+ * Tencent needs one detail request per row, so its page is smaller.
  */
 export const demoCompanies: DemoCompany[] = [
   {
@@ -23,7 +24,7 @@ export const demoCompanies: DemoCompany[] = [
     referralUrl: "https://careers.tencent.com/search.html",
     recruitmentType: "social",
     sourceType: "tencent_api",
-    config: { pageSize: 24 },
+    config: { pageSize: 20 },
   },
   {
     slug: "bytedance",
@@ -31,7 +32,15 @@ export const demoCompanies: DemoCompany[] = [
     referralUrl: "https://jobs.bytedance.com/experienced/position",
     recruitmentType: "social",
     sourceType: "bytedance_api",
-    config: { pageSize: 24 },
+    config: { pageSize: 30 },
+  },
+  {
+    slug: "alibaba",
+    displayName: "阿里巴巴",
+    referralUrl: "https://talent.alibaba.com/off-campus/position-list?lang=zh",
+    recruitmentType: "social",
+    sourceType: "alibaba_api",
+    config: { pageSize: 30 },
   },
   {
     slug: "meituan",
@@ -39,6 +48,38 @@ export const demoCompanies: DemoCompany[] = [
     referralUrl: "https://zhaopin.meituan.com/web/social",
     recruitmentType: "social",
     sourceType: "meituan_api",
-    config: { pageSize: 24 },
+    config: { pageSize: 30 },
+  },
+  {
+    slug: "jd",
+    displayName: "京东",
+    referralUrl: "https://zhaopin.jd.com/web/job/job_info_list/3",
+    recruitmentType: "social",
+    sourceType: "jd_api",
+    config: { pageSize: 30 },
+  },
+  {
+    slug: "xiaomi",
+    displayName: "小米",
+    referralUrl: "https://xiaomi.jobs.f.mioffice.cn/index",
+    recruitmentType: "social",
+    sourceType: "xiaomi_api",
+    config: { pageSize: 30 },
+  },
+  {
+    slug: "didi",
+    displayName: "滴滴",
+    referralUrl: "https://talent.didiglobal.com/social/list",
+    recruitmentType: "social",
+    sourceType: "didi_api",
+    config: { pageSize: 30 },
+  },
+  {
+    slug: "ctrip",
+    displayName: "携程",
+    referralUrl: "https://job.ctrip.com/experienced/jobList",
+    recruitmentType: "social",
+    sourceType: "ctrip_api",
+    config: { pageSize: 30 },
   },
 ];

@@ -1,5 +1,5 @@
 import { fetchJson, readJsonFixture } from "@/lib/crawlers/public-json";
-import { buildChineseJob, parseEpoch, readPageSize, uniqueLocations } from "@/lib/crawlers/text";
+import { buildChineseJob, FRONTEND_QUERY, mapFrontendJobs, parseEpoch, readPageSize, uniqueLocations } from "@/lib/crawlers/text";
 import type { AdapterContext, AdapterFetchResult, CrawlerAdapter, NormalizedJob } from "@/lib/crawlers/types";
 
 const SOURCE_TYPE = "bytedance_api";
@@ -44,15 +44,12 @@ export function normalizeByteDancePost(value: unknown): NormalizedJob | null {
 }
 
 export function normalizeByteDancePosts(values: unknown[]): NormalizedJob[] {
-  const jobs: NormalizedJob[] = [];
-  for (const value of values) {
-    const job = normalizeByteDancePost(value);
-    if (job) jobs.push(job);
-  }
-  if (values.length > 0 && jobs.length === 0) {
-    throw new Error("字节跳动返回了职位，但没有中文职位要求可收录");
-  }
-  return jobs;
+  return mapFrontendJobs(values, "字节跳动", (value) => {
+    if (!value || typeof value !== "object") return null;
+    const title = (value as ByteDancePost).title?.trim();
+    if (!title) return null;
+    return { title, job: normalizeByteDancePost(value) };
+  });
 }
 
 async function loadFixture(note: string): Promise<AdapterFetchResult> {
@@ -95,7 +92,7 @@ async function fetchLive(pageSize: number): Promise<AdapterFetchResult> {
       cookie,
     },
     body: JSON.stringify({
-      keyword: "",
+      keyword: FRONTEND_QUERY,
       limit: pageSize,
       offset: 0,
       job_category_id_list: [],
@@ -113,7 +110,7 @@ async function fetchLive(pageSize: number): Promise<AdapterFetchResult> {
   return {
     jobs: normalizeByteDancePosts(posts),
     authoritative: true,
-    note: `字节跳动招聘公开接口，社会招聘最近 ${posts.length} 条`,
+    note: `字节跳动招聘公开接口，前端社招最近 ${posts.length} 条`,
   };
 }
 

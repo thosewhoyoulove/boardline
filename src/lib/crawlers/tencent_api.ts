@@ -1,5 +1,5 @@
 import { fetchJson, readJsonFixture, sleep } from "@/lib/crawlers/public-json";
-import { buildChineseJob, parseChineseDate, readPageSize } from "@/lib/crawlers/text";
+import { buildChineseJob, FRONTEND_QUERY, mapFrontendJobs, parseChineseDate, readPageSize } from "@/lib/crawlers/text";
 import type { AdapterContext, AdapterFetchResult, CrawlerAdapter, NormalizedJob } from "@/lib/crawlers/types";
 
 const SOURCE_TYPE = "tencent_api";
@@ -52,15 +52,12 @@ export function normalizeTencentPost(value: unknown): NormalizedJob | null {
 }
 
 export function normalizeTencentPosts(values: unknown[]): NormalizedJob[] {
-  const jobs: NormalizedJob[] = [];
-  for (const value of values) {
-    const job = normalizeTencentPost(value);
-    if (job) jobs.push(job);
-  }
-  if (values.length > 0 && jobs.length === 0) {
-    throw new Error("腾讯返回了职位，但没有中文职位要求可收录");
-  }
-  return jobs;
+  return mapFrontendJobs(values, "腾讯", (value) => {
+    const post = asPost(value);
+    const title = post?.RecruitPostName?.trim();
+    if (!title) return null;
+    return { title, job: normalizeTencentPost(value) };
+  });
 }
 
 async function loadFixture(note: string): Promise<AdapterFetchResult> {
@@ -76,6 +73,7 @@ async function fetchLive(pageSize: number): Promise<AdapterFetchResult> {
   listUrl.searchParams.set("pageSize", String(pageSize));
   listUrl.searchParams.set("language", "zh-cn");
   listUrl.searchParams.set("area", "cn");
+  listUrl.searchParams.set("keyword", FRONTEND_QUERY);
 
   const list = (await fetchJson(listUrl.toString(), {
     headers: { referer: "https://careers.tencent.com/search.html" },
@@ -112,7 +110,7 @@ async function fetchLive(pageSize: number): Promise<AdapterFetchResult> {
     authoritative: detailErrors === 0,
     note:
       detailErrors === 0
-        ? `腾讯招聘公开接口，中国地区社会招聘最近 ${posts.length} 条`
+        ? `腾讯招聘公开接口，中国地区前端社招最近 ${posts.length} 条`
         : `腾讯详情有 ${detailErrors} 条失败，本次不把缺失职位下线`,
   };
 }

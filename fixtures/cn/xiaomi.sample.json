@@ -1,0 +1,16 @@
+{
+  "data": {
+    "job_post_list": [
+      {
+        "id": "sample-xiaomi-fe",
+        "title": "高级前端开发工程师",
+        "description": "负责商城前端开发。",
+        "requirement": "3 年以上前端经验，熟悉 React，能阅读中文需求。",
+        "job_category": { "name": "前端", "i18n_name": "前端" },
+        "city_info": { "name": "北京", "i18n_name": "北京" },
+        "city_list": [{ "name": "北京", "i18n_name": "北京" }, { "name": "南京", "i18n_name": "南京" }],
+        "publish_time": 1791535405262
+      }
+    ]
+  }
+}

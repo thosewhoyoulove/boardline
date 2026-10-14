@@ -31,6 +31,11 @@ export function sourceLabel(value: string): string {
   if (value === "tencent_api") return "腾讯招聘公开接口";
   if (value === "bytedance_api") return "字节跳动招聘公开接口";
   if (value === "meituan_api") return "美团招聘公开接口";
+  if (value === "xiaomi_api") return "小米招聘公开接口";
+  if (value === "alibaba_api") return "阿里巴巴招聘公开接口";
+  if (value === "didi_api") return "滴滴招聘公开接口";
+  if (value === "jd_api") return "京东招聘公开接口";
+  if (value === "ctrip_api") return "携程招聘公开接口";
   return value;
 }
 

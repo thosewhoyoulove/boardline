@@ -15,7 +15,7 @@ export default function CompaniesPage() {
         <p className="text-xs tracking-[0.18em] text-primary uppercase">公司目录</p>
         <h1 className="mt-2 font-display text-4xl leading-tight tracking-tight sm:text-5xl">已接入的招聘方</h1>
         <p className="mt-3 text-base leading-7 text-muted-foreground">
-          目前接入腾讯、字节跳动和美团的公开社会招聘。职位要求需要是中文。停用一家公司后，抓取会跳过它。
+          接入的都是中国大陆公司的公开社会招聘，只保留前端和 AI 前端，职位要求需要是中文。停用一家公司后，抓取会跳过它。
         </p>
       </header>
       <Suspense fallback={<CompanyDirectoryFallback />}>

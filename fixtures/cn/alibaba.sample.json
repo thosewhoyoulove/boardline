@@ -1,0 +1,26 @@
+{
+  "content": {
+    "datas": [
+      {
+        "id": 100024655002,
+        "name": "阿里国际站-AI工程师（前端开发工程师）-杭州",
+        "categories": ["技术类-前端"],
+        "categoryType": "social",
+        "description": "负责 AI 搜索和对话产品的前端。",
+        "requirement": "3 年以上前端经验，熟悉 React 和 TypeScript，能阅读中文需求。",
+        "workLocations": ["杭州"],
+        "publishTime": 1788175498000
+      },
+      {
+        "id": 100000000001,
+        "name": "前端产品经理",
+        "categories": ["产品"],
+        "categoryType": "social",
+        "description": "负责需求规划。",
+        "requirement": "能写中文需求文档。",
+        "workLocations": ["杭州"],
+        "publishTime": 1788175498000
+      }
+    ]
+  }
+}

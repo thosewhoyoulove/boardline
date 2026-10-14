@@ -2,11 +2,20 @@
   "data": {
     "list": [
       {
+        "jobUnionId": "sample-meituan-fe",
+        "name": "前端开发工程师",
+        "jobFamily": "技术",
+        "jobDuty": "负责用户端页面开发。\n持续优化加载和交互性能。",
+        "jobRequirement": "3 年以上前端经验。\n能独立完成中文技术方案，并用数据复盘结果。",
+        "cityList": [{ "name": "北京市" }],
+        "refreshTime": 1791958262000
+      },
+      {
         "jobUnionId": "sample-meituan-ops",
         "name": "品类营销运营",
         "jobFamily": "运营类",
-        "jobDuty": "负责酒店出游场景的营销活动策划与执行。\n对场景成交和转化效率负责。",
-        "jobRequirement": "3年以上互联网运营经验。\n能独立完成中文活动方案，并用数据复盘结果。",
+        "jobDuty": "负责营销活动策划。",
+        "jobRequirement": "3年以上互联网运营经验。能独立完成中文活动方案。",
         "cityList": [{ "name": "北京市" }],
         "refreshTime": 1791958262000
       }

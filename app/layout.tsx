@@ -27,10 +27,10 @@ export const metadata: Metadata = {
     default: "职线 Boardline",
     template: "%s · 职线",
   },
-  description: "整理公司公开招聘接口上的职位。申请只跳转到官方页面。",
+  description: "整理中国大陆公司公开的前端和 AI 前端社会招聘。申请只跳转到官方页面。",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html
       lang="zh-CN"

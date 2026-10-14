@@ -2,6 +2,7 @@ import "server-only";
 import { cache } from "react";
 import { connection } from "next/server";
 
+import { isFrontendRole } from "@/lib/crawlers/text";
 import { getPrisma } from "@/lib/db/client";
 
 export type JobFilters = {
@@ -70,11 +71,11 @@ export const getJobBoard = cache(async (filters: JobFilters): Promise<JobBoardDa
   const prisma = getPrisma();
   const companySlug = filters.company || undefined;
 
-  const [rows, companies, unfilteredTotal] = await Promise.all([
+  const [rows, companies] = await Promise.all([
     prisma.job.findMany({
       where: {
         isActive: true,
-        company: { active: true, ...(companySlug ? { slug: companySlug } : {}) },
+        company: { active: true },
       },
       orderBy: [{ publishTime: "desc" }, { firstSeenAt: "desc" }],
       select: {
@@ -93,10 +94,11 @@ export const getJobBoard = cache(async (filters: JobFilters): Promise<JobBoardDa
       orderBy: { displayName: "asc" },
       select: { slug: true, displayName: true },
     }),
-    prisma.job.count({ where: { isActive: true, company: { active: true } } }),
   ]);
 
-  const matched = rows.filter((job) => {
+  const frontendRows = rows.filter((job) => isFrontendRole(job.title));
+  const matched = frontendRows.filter((job) => {
+    if (companySlug && job.company.slug !== companySlug) return false;
     const locations = readLocations(job.locations);
     if (filters.location && !locations.some((location) => includesNeedle(location, filters.location))) {
       return false;
@@ -126,7 +128,7 @@ export const getJobBoard = cache(async (filters: JobFilters): Promise<JobBoardDa
     total: matched.length,
     page,
     pageSize: PAGE_SIZE,
-    unfilteredTotal,
+    unfilteredTotal: frontendRows.length,
     companies,
   };
 });
@@ -134,9 +136,9 @@ export const getJobBoard = cache(async (filters: JobFilters): Promise<JobBoardDa
 export async function listStaticJobIds(): Promise<string[]> {
   const jobs = await getPrisma().job.findMany({
     where: { isActive: true, company: { active: true } },
-    select: { id: true },
+    select: { id: true, title: true },
   });
-  return jobs.map((job) => job.id);
+  return jobs.filter((job) => isFrontendRole(job.title)).map((job) => job.id);
 }
 
 // Cached at build time so each known job is a complete page, not a Vercel partial shell.
@@ -149,7 +151,7 @@ export async function getJobDetail(id: string): Promise<JobDetail | null> {
       source: true,
     },
   });
-  if (!job) return null;
+  if (!job || !isFrontendRole(job.title)) return null;
 
   return {
     id: job.id,
@@ -180,8 +182,9 @@ export const getCompanyDirectory = cache(async (): Promise<CompanyCard[]> => {
         where: { isActive: true },
         select: { sourceType: true, recruitmentType: true },
       },
-      _count: {
-        select: { jobs: { where: { isActive: true } } },
+      jobs: {
+        where: { isActive: true },
+        select: { title: true },
       },
     },
   });
@@ -191,7 +194,7 @@ export const getCompanyDirectory = cache(async (): Promise<CompanyCard[]> => {
     displayName: company.displayName,
     referralUrl: company.referralUrl,
     active: company.active,
-    openJobs: company._count.jobs,
+    openJobs: company.jobs.filter((job) => isFrontendRole(job.title)).length,
     sources: company.sources,
   }));
 });

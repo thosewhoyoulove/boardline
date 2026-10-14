@@ -1,5 +1,5 @@
 import { fetchJson, readJsonFixture } from "@/lib/crawlers/public-json";
-import { buildChineseJob, parseEpoch, readPageSize } from "@/lib/crawlers/text";
+import { buildChineseJob, FRONTEND_QUERY, mapFrontendJobs, parseEpoch, readPageSize } from "@/lib/crawlers/text";
 import type { AdapterContext, AdapterFetchResult, CrawlerAdapter, NormalizedJob } from "@/lib/crawlers/types";
 
 const SOURCE_TYPE = "meituan_api";
@@ -37,15 +37,12 @@ export function normalizeMeituanJob(value: unknown): NormalizedJob | null {
 }
 
 export function normalizeMeituanJobs(values: unknown[]): NormalizedJob[] {
-  const jobs: NormalizedJob[] = [];
-  for (const value of values) {
-    const job = normalizeMeituanJob(value);
-    if (job) jobs.push(job);
-  }
-  if (values.length > 0 && jobs.length === 0) {
-    throw new Error("美团返回了职位，但没有中文职位要求可收录");
-  }
-  return jobs;
+  return mapFrontendJobs(values, "美团", (value) => {
+    if (!value || typeof value !== "object") return null;
+    const title = (value as MeituanJob).name?.trim();
+    if (!title) return null;
+    return { title, job: normalizeMeituanJob(value) };
+  });
 }
 
 async function loadFixture(note: string): Promise<AdapterFetchResult> {
@@ -66,7 +63,7 @@ async function fetchLive(pageSize: number): Promise<AdapterFetchResult> {
     body: JSON.stringify({
       page: { pageNo: 1, pageSize },
       jobShareType: "1",
-      keywords: "",
+      keywords: FRONTEND_QUERY,
       jobType: [{ code: "3", subCode: [] }],
     }),
   })) as { data?: { list?: unknown } };
@@ -76,7 +73,7 @@ async function fetchLive(pageSize: number): Promise<AdapterFetchResult> {
   return {
     jobs: normalizeMeituanJobs(list),
     authoritative: true,
-    note: `美团招聘公开接口，社会招聘最近 ${list.length} 条`,
+    note: `美团招聘公开接口，前端社招最近 ${list.length} 条`,
   };
 }
 

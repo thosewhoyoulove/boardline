@@ -1,7 +1,20 @@
 import { contentHash } from "@/lib/crawlers/hash";
-import { plainText, sanitizeDescription } from "@/lib/crawlers/sanitize";
+import { htmlToText, plainText, sanitizeDescription } from "@/lib/crawlers/sanitize";
 import type { NormalizedJob } from "@/lib/crawlers/types";
 import { safeHttpUrl } from "@/lib/http";
+
+/** Keyword sent to public career search APIs. Title filtering is stricter than this. */
+export const FRONTEND_QUERY = "前端";
+
+const FRONTEND_TITLE = /(前端|front[\s-]?end)/i;
+const NOT_FRONTEND_TITLE =
+  /产品|运营|销售|市场|招聘专员|商务|测试|算法|后端|服务端|客户端|安卓|android|\bios\b|安全工程师|设计师|视觉设计|交互设计|运维|硬件|芯片|特效|美术|策划|客服|财务|法务|人力资源|行政|采购|供应链|品牌|公关|编辑|主播|分析师|数据科学|数据开发|数据工程|实习|校招|秋招|春招|应届|校园招聘|20\d{2}届|偏前端|懂前端|熟悉前端|了解前端|前端优先|前端相关|前端经验|前端背景/i;
+
+export function isFrontendRole(title: string | null | undefined): boolean {
+  const value = title?.trim() ?? "";
+  if (!value || NOT_FRONTEND_TITLE.test(value)) return false;
+  return FRONTEND_TITLE.test(value);
+}
 
 export function containsChinese(value: string | null | undefined): boolean {
   return Boolean(value && /[\u4e00-\u9fff]/.test(value));
@@ -74,6 +87,38 @@ export function sectionsToHtml(
   return sanitizeDescription(chunks.join(""));
 }
 
+export function asPlain(value: string | null | undefined): string | null {
+  if (!value) return null;
+  if (/<\/?[a-z][^>]*>/i.test(value)) return htmlToText(value);
+  return plainText(value);
+}
+
+export function mapFrontendJobs(
+  values: unknown[],
+  sourceLabel: string,
+  read: (value: unknown) => { title: string; job: NormalizedJob | null; ineligible?: boolean } | null,
+): NormalizedJob[] {
+  const jobs: NormalizedJob[] = [];
+  let readable = 0;
+  let frontend = 0;
+  for (const value of values) {
+    const row = read(value);
+    const title = row?.title.trim();
+    if (!title) continue;
+    readable += 1;
+    if (row?.ineligible || !isFrontendRole(title)) continue;
+    frontend += 1;
+    if (row?.job) jobs.push(row.job);
+  }
+  if (values.length > 0 && readable === 0) {
+    throw new Error(`${sourceLabel}返回了职位，但没有可识别的职位名称`);
+  }
+  if (frontend > 0 && jobs.length === 0) {
+    throw new Error(`${sourceLabel}返回了前端职位，但没有中文职位要求可收录`);
+  }
+  return jobs;
+}
+
 export function buildChineseJob(input: {
   sourceType: string;
   scope: string;
@@ -88,13 +133,13 @@ export function buildChineseJob(input: {
 }): NormalizedJob | null {
   const title = input.title.trim();
   const externalId = input.externalId.trim();
-  const requirement = plainText(input.requirement);
-  if (!title || !externalId || !containsChinese(requirement)) return null;
+  const requirement = asPlain(input.requirement);
+  if (!title || !externalId || !isFrontendRole(title) || !containsChinese(requirement)) return null;
 
   const officialUrl = safeHttpUrl(input.officialUrl);
   if (!officialUrl?.startsWith("https://")) return null;
 
-  const responsibility = plainText(input.responsibility);
+  const responsibility = asPlain(input.responsibility);
   const descriptionHtml = sectionsToHtml([
     { title: "职位职责", body: responsibility },
     { title: "职位要求", body: requirement },

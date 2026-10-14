@@ -1,0 +1,36 @@
+{
+  "retValue": {
+    "recruitJobAdList": [
+      {
+        "jobId": "sample-ctrip-fe",
+        "jobTitle": "高级前端开发工程师(MJ036850)",
+        "cityName": "上海",
+        "requirements": "<p>熟悉 React，能阅读中文需求。</p><p>有性能优化经验。</p>",
+        "duty": "<p>负责用户端前端开发。</p>",
+        "publishDate": "2026-10-01",
+        "kindName": "",
+        "buName": "酒店"
+      },
+      {
+        "jobId": "sample-ctrip-campus",
+        "jobTitle": "前端开发工程师（2027届秋招）(MJ036603)",
+        "cityName": "上海",
+        "requirements": "<p>熟悉前端基础，能阅读中文需求。</p>",
+        "duty": "<p>参与页面开发。</p>",
+        "publishDate": "2026-10-01",
+        "kindName": "Fresh Graduates",
+        "buName": "酒店"
+      },
+      {
+        "jobId": "sample-ctrip-pm",
+        "jobTitle": "前端产品经理(MJ037244)",
+        "cityName": "上海",
+        "requirements": "<p>负责前端产品规划，能写中文文档。</p>",
+        "duty": "<p>输出需求。</p>",
+        "publishDate": "2026-09-28",
+        "kindName": "",
+        "buName": "酒店"
+      }
+    ]
+  }
+}

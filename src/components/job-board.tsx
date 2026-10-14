@@ -1,9 +1,6 @@
 import Link from "next/link";
 
 import { Badge } from "@/components/ui/badge";
-import { buttonVariants } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { cn } from "cn";
 import { getJobBoard, PAGE_SIZE, type JobFilters, type JobListItem } from "@/lib/db/queries";
 import { boardHref, formatDate, formatLocations, isFresh, readCompanySlug, readPage, readQueryValue } from "@/lib/format";
 
@@ -27,74 +24,37 @@ export async function JobBoard({
     );
   }
   const companyName = board.companies.find((company) => company.slug === filters.company)?.displayName;
-  const hasFilters = Boolean(filters.q || filters.company || filters.location);
+
+  if (board.unfilteredTotal === 0) return <ScrapeHint />;
+
+  if (board.total === 0) {
+    return (
+      <div className="rounded-2xl border border-dashed bg-card px-5 py-10 text-center">
+        <h2 className="font-display text-2xl">没有匹配的职位</h2>
+        <p className="mt-2 text-sm text-muted-foreground">换一个关键词、公司或地点，或者清除筛选。</p>
+        <Link href="/" className="mt-4 inline-block text-sm text-primary underline-offset-4 hover:underline">
+          查看全部 {board.unfilteredTotal} 个在招职位
+        </Link>
+      </div>
+    );
+  }
 
   return (
-    <div className="grid gap-6">
-      <form method="get" className="grid gap-3 rounded-2xl border bg-card p-4 sm:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end">
-        <label className="grid gap-1.5 text-xs font-medium text-muted-foreground">
-          关键词
-          <Input name="q" defaultValue={filters.q} placeholder="标题、团队、描述" autoComplete="off" />
-        </label>
-        <label className="grid gap-1.5 text-xs font-medium text-muted-foreground">
-          公司
-          <select
-            name="company"
-            defaultValue={filters.company}
-            className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm text-foreground"
-          >
-            <option value="">全部公司</option>
-            {board.companies.map((company) => (
-              <option key={company.slug} value={company.slug}>
-                {company.displayName}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="grid gap-1.5 text-xs font-medium text-muted-foreground">
-          地点
-          <Input name="location" defaultValue={filters.location} placeholder="城市或 Remote" autoComplete="off" />
-        </label>
-        <div className="flex items-center gap-2">
-          <button type="submit" className={cn(buttonVariants(), "h-8")}>
-            筛选
-          </button>
-          {hasFilters ? (
-            <Link href="/" className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">
-              清除
-            </Link>
-          ) : null}
-        </div>
-      </form>
-
-      {board.unfilteredTotal === 0 ? (
-        <ScrapeHint />
-      ) : board.total === 0 ? (
-        <div className="rounded-2xl border border-dashed bg-card px-5 py-10 text-center">
-          <h2 className="font-display text-2xl">没有匹配的职位</h2>
-          <p className="mt-2 text-sm text-muted-foreground">换一个关键词、公司或地点，或者清除筛选。</p>
-          <Link href="/" className="mt-4 inline-block text-sm text-primary underline-offset-4 hover:underline">
-            查看全部 {board.unfilteredTotal} 个在招职位
-          </Link>
-        </div>
-      ) : (
-        <section aria-labelledby="job-count">
-          <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
-            <h2 id="job-count" className="text-sm text-muted-foreground">
-              {companyName ? `${companyName} · ` : ""}
-              {board.total} 个在招职位
-              {board.total > PAGE_SIZE ? `，第 ${board.page} / ${Math.ceil(board.total / PAGE_SIZE)} 页` : ""}
-            </h2>
-          </div>
-          <ol className="divide-y overflow-hidden rounded-2xl border bg-card">
-            {board.jobs.map((job) => (
-              <JobRow key={job.id} job={job} />
-            ))}
-          </ol>
-          <Pagination filters={filters} page={board.page} total={board.total} />
-        </section>
-      )}
-    </div>
+    <section aria-labelledby="job-count">
+      <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
+        <h2 id="job-count" className="text-sm text-muted-foreground">
+          {companyName ? `${companyName} · ` : ""}
+          {board.total} 个在招职位
+          {board.total > PAGE_SIZE ? `，第 ${board.page} / ${Math.ceil(board.total / PAGE_SIZE)} 页` : ""}
+        </h2>
+      </div>
+      <ol className="divide-y overflow-hidden rounded-2xl border bg-card">
+        {board.jobs.map((job) => (
+          <JobRow key={job.id} job={job} />
+        ))}
+      </ol>
+      <Pagination filters={filters} page={board.page} total={board.total} />
+    </section>
   );
 }
 
@@ -160,9 +120,9 @@ function Pagination({
 function ScrapeHint() {
   return (
     <div className="rounded-2xl border bg-card px-5 py-8 sm:px-8">
-      <h2 className="font-display text-3xl tracking-tight">库里还没有职位</h2>
+      <h2 className="font-display text-3xl tracking-tight">库里还没有前端职位</h2>
       <p className="mt-3 max-w-xl text-sm leading-6 text-muted-foreground">
-        先迁移数据库，再抓取腾讯、字节跳动和美团的公开职位。没有外网时可以用仓库里的中文样例。
+        先迁移数据库，再抓取已接入公司的公开前端社招。没有外网时可以用仓库里的中文样例。
       </p>
       <pre className="mt-5 overflow-x-auto rounded-xl bg-foreground px-4 py-3 text-sm text-background">
         npx prisma migrate dev{"\n"}npm run scrape
@@ -170,15 +130,6 @@ function ScrapeHint() {
       <p className="mt-3 text-sm text-muted-foreground">
         离线：<code className="font-mono text-foreground">npm run scrape -- --offline</code>
       </p>
-    </div>
-  );
-}
-
-export function JobBoardFallback() {
-  return (
-    <div className="grid gap-6" aria-hidden="true">
-      <div className="h-28 rounded-2xl border bg-card" />
-      <div className="h-64 animate-pulse rounded-2xl border bg-muted" />
     </div>
   );
 }

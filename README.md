@@ -34,10 +34,10 @@ npm run scrape
 
 脚本会：
 
-1. 写入腾讯、字节跳动、美团三条社会招聘数据源。早期的 Linear、Notion、Ashby 示例会停用，不再抓取。
+1. 写入腾讯、字节跳动、阿里巴巴、美团、京东、小米、滴滴、携程的社会招聘数据源。早期的 Linear、Notion、Ashby 示例会停用，不再抓取。
 2. 按数据源调用适配器。公司之间间隔 800ms，腾讯的职位详情之间再间隔 500ms，并带上可识别的 User-Agent。
-3. 只保留职位要求里含中文的社会招聘，按 `uniqueKey` upsert。
-4. 每次只取各公司最近一页（默认 24 条）。实时接口完整返回这一页时，把该来源里这次没出现的职位标成 `isActive = false`。
+3. 用「前端」向公开接口检索，再只保留标题是前端或 AI 前端、且职位要求含中文的社会招聘。产品、运营、算法、后端、客户端、测试、校招和实习都会丢掉。按 `uniqueKey` upsert。
+4. 每次只取各公司最近一页（腾讯 20 条，其余 30 条）。实时接口完整返回这一页时，把该来源里这次没出现的职位标成 `isActive = false`。
 
 没有外网，或公开接口暂时失败时，会改用 `fixtures/cn/*.sample.json`。样例不是完整列表，因此**不会**把缺失职位下线。也可以强制离线：
 
@@ -57,13 +57,18 @@ npm run scrape -- --offline
 
 抓取逻辑在 `src/lib/crawlers/`。当前示例来源都不需要登录：
 
-- `tencent_api`：`GET https://careers.tencent.com/tencentcareer/api/post/Query?area=cn&language=zh-cn`，再用 `ByPostId` 取中文职位要求。申请页是 `https://careers.tencent.com/jobdesc.html?postId=`。
-- `bytedance_api`：先向公开页面要 CSRF，再 `POST https://jobs.bytedance.com/api/v1/search/job/posts`（`portal_type=2` 社会招聘）。申请页是官网职位详情。
-- `meituan_api`：`POST https://zhaopin.meituan.com/api/official/job/getJobList`，`jobType` 为社招。申请页是官网职位详情。
+- `tencent_api`：`GET https://careers.tencent.com/tencentcareer/api/post/Query?area=cn&language=zh-cn&keyword=前端`，再用 `ByPostId` 取中文职位要求。申请页是 `https://careers.tencent.com/jobdesc.html?postId=`。
+- `bytedance_api`：先向公开页面要 CSRF，再 `POST https://jobs.bytedance.com/api/v1/search/job/posts`（`portal_type=2` 社会招聘，关键词「前端」）。申请页是官网职位详情。
+- `alibaba_api`：先打开社招列表页拿公开的 `XSRF-TOKEN`，再 `POST https://talent.alibaba.com/position/search`。申请页是官网职位详情。
+- `meituan_api`：`POST https://zhaopin.meituan.com/api/official/job/getJobList`，`jobType` 为社招，关键词「前端」。申请页是官网职位详情。
+- `jd_api`：`POST https://zhaopin.jd.com/web/job/job_list`。官网没有单独的公开职位页，申请入口是社会招聘列表。
+- `xiaomi_api`：飞书招聘公开接口，先要 CSRF，再搜索社招。申请页是官网职位详情。
+- `didi_api`：`GET https://talent.didiglobal.com/recruit-portal-service/api/job/front/list`。申请页是官网职位详情。
+- `ctrip_api`：`POST https://job.ctrip.com/api/hrrecruit/getJobAd`。校园招聘标题会被丢掉。申请页是官网职位详情。
 
 `ashby_api` 仍保留，请求 `GET https://api.ashbyhq.com/posting-api/job-board/{boardSlug}`。新增来源时实现 `CrawlerAdapter`，并在 `registry.ts` 注册 `sourceType`。
 
-`recruitmentType` 取 `social`（社会招聘）或 `campus`（校园招聘）。当前示例都是社会招聘，并且会丢掉没有中文职位要求的条目。
+`recruitmentType` 取 `social`（社会招聘）或 `campus`（校园招聘）。当前示例都是社会招聘，只保留前端和 AI 前端，并且会丢掉没有中文职位要求的条目。
 
 ### 换到 Postgres / Neon
 
@@ -99,7 +104,7 @@ Vercel 的 Serverless 文件系统是临时的，不要把 SQLite 文件当成�
 ### 伦理与使用边界
 
 - 只使用公开、无需登录的招聘接口。不要绕过登录、不要打私有 API、不要无视 `robots.txt` 或服务条款。
-- 腾讯、字节跳动、美团和 Ashby 的接口都是各自招聘站使用的公开 JSON。即便如此，也要限速、串行请求，并在 User-Agent 里说明用途。
+- 这些接口都是各自招聘站使用的公开 JSON，不需要登录。即便如此，也要限速、串行请求，并在 User-Agent 里说明用途。
 - 申请只跳到官方 URL。不要代投、不要伪造内推链接、不要把简历流量引到与招聘方无关的页面。
 - 职位描述里可能有人名或联系方式。不要另做追踪，页面上也不要注入第三方脚本。
 - 如果一家公司要求停止收录，把对应 `dataSources.isActive` 或 `companies.active` 设为 false。
@@ -139,7 +144,7 @@ Open [http://localhost:3000](http://localhost:3000). The committed `.env` points
 
 ### Scrape
 
-`npm run scrape` seeds Tencent, ByteDance, and Meituan social-hire sources, and deactivates the earlier Linear, Notion, and Ashby demos. It keeps roles whose requirements contain Chinese, upserts them on `uniqueKey`, and treats each live page (default 24 roles) as the current set for that source. Requests are sequential, with an identifying User-Agent.
+`npm run scrape` seeds social-hire sources for Tencent, ByteDance, Alibaba, Meituan, JD, Xiaomi, DiDi, and Trip.com, and deactivates the earlier Linear, Notion, and Ashby demos. It searches each public API for frontend roles, then keeps only titles that are frontend or AI-frontend engineering with Chinese requirements. Each live page (20 roles for Tencent, 30 for the others) is the current set for that source. Requests are sequential, with an identifying User-Agent.
 
 If the network fails, the adapter falls back to `fixtures/cn/*.sample.json`. Fixture imports are not authoritative and do not deactivate other rows. Force that path with:
 
@@ -147,7 +152,7 @@ If the network fails, the adapter falls back to `fixtures/cn/*.sample.json`. Fix
 npm run scrape -- --offline
 ```
 
-The seeded adapters call the public career JSON used by each employer's own site: Tencent `Query`/`ByPostId`, ByteDance `search/job/posts`, and Meituan `getJobList`. No login is required. `ashby_api` remains available. Add another adapter in `src/lib/crawlers/` and register it in `registry.ts`.
+The seeded adapters call the public career JSON used by each employer's own site. No login is required. `ashby_api` remains available. Add another adapter in `src/lib/crawlers/` and register it in `registry.ts`.
 
 ### Pages
 
