@@ -1,7 +1,6 @@
-import { Suspense } from "react";
 import type { Metadata } from "next";
 
-import { CompanyDirectory, CompanyDirectoryFallback } from "@/components/company-directory";
+import { CompanyDirectory } from "@/components/company-directory";
 
 export const metadata: Metadata = {
   title: "公司",
@@ -18,9 +17,7 @@ export default function CompaniesPage() {
           接入的都是中国大陆公司的公开社会招聘，只保留前端和 AI 前端，职位要求需要是中文。一家公司这次没有前端社招时，在招数会是 0。
         </p>
       </header>
-      <Suspense fallback={<CompanyDirectoryFallback />}>
-        <CompanyDirectory />
-      </Suspense>
+      <CompanyDirectory />
     </div>
   );
 }

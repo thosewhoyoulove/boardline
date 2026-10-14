@@ -1,12 +1,10 @@
 "use client";
 
 import { Check, ChevronDown } from "lucide-react";
-import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useId, useRef, useState, useTransition, type ReactNode, type TransitionStartFunction } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 
-import { JobListSkeleton } from "@/components/job-skeletons";
 import { Input } from "@/components/ui/input";
-import { boardHref } from "@/lib/format";
+import { BOARD_QUERY_EVENT, readBoardQuery, writeBoardQuery } from "@/lib/board-query";
 import { cn } from "cn";
 
 export type FilterCompany = {
@@ -14,77 +12,58 @@ export type FilterCompany = {
   displayName: string;
 };
 
-export function BoardFrame({ companies, children }: { companies: FilterCompany[]; children: ReactNode }) {
-  const [pending, startTransition] = useTransition();
-  return (
-    <>
-      <JobFilters companies={companies} startTransition={startTransition} />
-      <div className="mt-6" aria-busy={pending}>
-        {pending ? (
-          <JobListSkeleton />
-        ) : (
-          <Suspense fallback={<JobListSkeleton />}>{children}</Suspense>
-        )}
-      </div>
-    </>
-  );
-}
-
-export function JobFilters({
-  companies,
-  startTransition,
-}: {
-  companies: FilterCompany[];
-  startTransition: TransitionStartFunction;
-}) {
-  const router = useRouter();
-  const params = useSearchParams();
-  const urlQ = params.get("q") ?? "";
-  const urlCompany = params.get("company") ?? "";
-  const urlLocation = params.get("location") ?? "";
-
-  const [q, setQ] = useState(urlQ);
-  const [location, setLocation] = useState(urlLocation);
-  const [company, setCompany] = useState(urlCompany);
-  const keywordRef = useRef<HTMLInputElement>(null);
-  const locationRef = useRef<HTMLInputElement>(null);
+export function JobFilters({ companies }: { companies: FilterCompany[] }) {
+  const [q, setQ] = useState("");
+  const [location, setLocation] = useState("");
+  const [company, setCompany] = useState("");
+  const writeTimer = useRef<number | null>(null);
 
   useEffect(() => {
-    function syncFromHistory() {
-      const next = new URLSearchParams(window.location.search);
-      setQ(next.get("q") ?? "");
-      setLocation(next.get("location") ?? "");
-      setCompany(next.get("company") ?? "");
+    function syncFromUrl() {
+      const next = readBoardQuery();
+      setQ(next.q);
+      setLocation(next.location);
+      setCompany(next.company);
     }
-    window.addEventListener("popstate", syncFromHistory);
-    return () => window.removeEventListener("popstate", syncFromHistory);
+    const timer = window.setTimeout(syncFromUrl, 0);
+    window.addEventListener("popstate", syncFromUrl);
+    window.addEventListener(BOARD_QUERY_EVENT, syncFromUrl);
+    return () => {
+      window.clearTimeout(timer);
+      window.removeEventListener("popstate", syncFromUrl);
+      window.removeEventListener(BOARD_QUERY_EVENT, syncFromUrl);
+      if (writeTimer.current) window.clearTimeout(writeTimer.current);
+    };
   }, []);
 
-  useEffect(() => {
-    const trimmed = { q: q.trim(), company, location: location.trim() };
-    if (trimmed.q === urlQ && trimmed.company === urlCompany && trimmed.location === urlLocation) return;
-    const handle = window.setTimeout(() => {
-      startTransition(() => {
-        router.replace(boardHref(trimmed), { scroll: false });
+  function schedule(next: { q: string; company: string; location: string }) {
+    if (writeTimer.current) window.clearTimeout(writeTimer.current);
+    writeTimer.current = window.setTimeout(() => {
+      writeBoardQuery({
+        q: next.q.trim(),
+        company: next.company,
+        location: next.location.trim(),
+        page: 1,
       });
     }, 280);
-    return () => window.clearTimeout(handle);
-  }, [q, location, company, urlQ, urlCompany, urlLocation, router, startTransition]);
+  }
 
-  function replaceNow(next: { q: string; company: string; location: string }) {
-    const trimmed = { q: next.q.trim(), company: next.company, location: next.location.trim() };
-    if (trimmed.q === urlQ && trimmed.company === urlCompany && trimmed.location === urlLocation) return;
-    startTransition(() => {
-      router.replace(boardHref(trimmed), { scroll: false });
+  function writeNow(next: { q: string; company: string; location: string }) {
+    if (writeTimer.current) window.clearTimeout(writeTimer.current);
+    writeBoardQuery({
+      q: next.q.trim(),
+      company: next.company,
+      location: next.location.trim(),
+      page: 1,
     });
   }
 
   function chooseCompany(slug: string) {
     setCompany(slug);
-    replaceNow({ q, company: slug, location });
+    writeNow({ q, company: slug, location });
   }
 
-  const hasFilters = Boolean(urlQ || urlCompany || urlLocation || q || location || company);
+  const hasFilters = Boolean(q.trim() || location.trim() || company);
 
   return (
     <div className="rounded-2xl border bg-card p-4">
@@ -98,9 +77,7 @@ export function JobFilters({
               setQ("");
               setLocation("");
               setCompany("");
-              startTransition(() => {
-                router.replace("/", { scroll: false });
-              });
+              writeNow({ q: "", company: "", location: "" });
             }}
           >
             清除
@@ -111,9 +88,12 @@ export function JobFilters({
         <label className="grid gap-1.5 text-xs font-medium text-muted-foreground">
           关键词
           <Input
-            ref={keywordRef}
             value={q}
-            onChange={(event) => setQ(event.target.value)}
+            onChange={(event) => {
+              const value = event.target.value;
+              setQ(value);
+              schedule({ q: value, company, location });
+            }}
             placeholder="标题、团队、描述"
             autoComplete="off"
           />
@@ -122,9 +102,12 @@ export function JobFilters({
         <label className="grid gap-1.5 text-xs font-medium text-muted-foreground">
           地点
           <Input
-            ref={locationRef}
             value={location}
-            onChange={(event) => setLocation(event.target.value)}
+            onChange={(event) => {
+              const value = event.target.value;
+              setLocation(value);
+              schedule({ q, company, location: value });
+            }}
             placeholder="城市"
             autoComplete="off"
           />

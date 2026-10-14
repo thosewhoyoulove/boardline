@@ -5,7 +5,7 @@ const dateFormat = new Intl.DateTimeFormat("zh-CN", {
   timeZone: "Asia/Shanghai",
 });
 
-export function formatDate(value: Date | null | undefined): string {
+export function formatDate(value: Date | string | null | undefined): string {
   if (!value) return "日期未知";
   const date = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(date.getTime())) return "日期未知";
@@ -16,8 +16,9 @@ export function formatLocations(locations: string[]): string {
   return locations.length > 0 ? locations.join(" · ") : "地点未标明";
 }
 
-export function isFresh(firstSeenAt: Date, now = Date.now()): boolean {
-  return now - firstSeenAt.getTime() < 7 * 24 * 60 * 60 * 1000;
+export function isFresh(firstSeenAt: Date | string, now = Date.now()): boolean {
+  const time = firstSeenAt instanceof Date ? firstSeenAt.getTime() : new Date(firstSeenAt).getTime();
+  return now - time < 7 * 24 * 60 * 60 * 1000;
 }
 
 export function recruitmentLabel(value: string): string {

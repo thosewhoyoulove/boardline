@@ -1,32 +1,25 @@
 import "server-only";
-import { cache } from "react";
-import { connection } from "next/server";
 
 import { isFrontendRole } from "@/lib/crawlers/text";
 import { getPrisma } from "@/lib/db/client";
-
-export type JobFilters = {
-  q: string;
-  company: string;
-  location: string;
-  page: number;
-};
 
 export type JobListItem = {
   id: string;
   title: string;
   category: string | null;
   locations: string[];
-  publishTime: Date | null;
-  firstSeenAt: Date;
+  descriptionText: string | null;
+  publishTime: string | null;
+  firstSeenAt: string;
   companySlug: string;
   companyName: string;
 };
 
-export type JobDetail = JobListItem & {
+export type JobDetail = Omit<JobListItem, "publishTime" | "firstSeenAt"> & {
   descriptionHtml: string | null;
-  descriptionText: string | null;
   officialUrl: string;
+  publishTime: Date | null;
+  firstSeenAt: Date;
   lastSeenAt: Date;
   isActive: boolean;
   recruitmentType: string;
@@ -46,31 +39,19 @@ export type CompanyCard = CompanyOption & {
   sources: Array<{ sourceType: string; recruitmentType: string }>;
 };
 
-export type JobBoardData = {
+export type PublishedBoard = {
   jobs: JobListItem[];
-  total: number;
-  page: number;
-  pageSize: number;
-  unfilteredTotal: number;
   companies: CompanyOption[];
 };
-
-export const PAGE_SIZE = 20;
 
 export function readLocations(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   return value.filter((item): item is string => typeof item === "string" && item.trim().length > 0);
 }
 
-function includesNeedle(haystack: string, needle: string): boolean {
-  return haystack.toLocaleLowerCase().includes(needle.toLocaleLowerCase());
-}
-
-export const getJobBoard = cache(async (filters: JobFilters): Promise<JobBoardData> => {
-  await connection();
+export async function getPublishedBoard(): Promise<PublishedBoard> {
+  "use cache";
   const prisma = getPrisma();
-  const companySlug = filters.company || undefined;
-
   const [rows, companies] = await Promise.all([
     prisma.job.findMany({
       where: {
@@ -96,42 +77,23 @@ export const getJobBoard = cache(async (filters: JobFilters): Promise<JobBoardDa
     }),
   ]);
 
-  const frontendRows = rows.filter((job) => isFrontendRole(job.title));
-  const matched = frontendRows.filter((job) => {
-    if (companySlug && job.company.slug !== companySlug) return false;
-    const locations = readLocations(job.locations);
-    if (filters.location && !locations.some((location) => includesNeedle(location, filters.location))) {
-      return false;
-    }
-    if (!filters.q) return true;
-    const haystack = [job.title, job.category, job.company.displayName, locations.join(" "), job.descriptionText]
-      .filter((part): part is string => Boolean(part))
-      .join("\n");
-    return includesNeedle(haystack, filters.q);
-  });
-
-  const pageCount = Math.max(1, Math.ceil(matched.length / PAGE_SIZE));
-  const page = Math.min(filters.page, pageCount);
-  const start = (page - 1) * PAGE_SIZE;
-
   return {
-    jobs: matched.slice(start, start + PAGE_SIZE).map((job) => ({
-      id: job.id,
-      title: job.title,
-      category: job.category,
-      locations: readLocations(job.locations),
-      publishTime: job.publishTime,
-      firstSeenAt: job.firstSeenAt,
-      companySlug: job.company.slug,
-      companyName: job.company.displayName,
-    })),
-    total: matched.length,
-    page,
-    pageSize: PAGE_SIZE,
-    unfilteredTotal: frontendRows.length,
+    jobs: rows
+      .filter((job) => isFrontendRole(job.title))
+      .map((job) => ({
+        id: job.id,
+        title: job.title,
+        category: job.category,
+        locations: readLocations(job.locations),
+        descriptionText: job.descriptionText,
+        publishTime: job.publishTime?.toISOString() ?? null,
+        firstSeenAt: job.firstSeenAt.toISOString(),
+        companySlug: job.company.slug,
+        companyName: job.company.displayName,
+      })),
     companies,
   };
-});
+}
 
 export async function listStaticJobIds(): Promise<string[]> {
   const jobs = await getPrisma().job.findMany({
@@ -173,8 +135,8 @@ export async function getJobDetail(id: string): Promise<JobDetail | null> {
   };
 }
 
-export const getCompanyDirectory = cache(async (): Promise<CompanyCard[]> => {
-  await connection();
+export async function getCompanyDirectory(): Promise<CompanyCard[]> {
+  "use cache";
   const companies = await getPrisma().company.findMany({
     where: { active: true },
     orderBy: { displayName: "asc" },
@@ -198,4 +160,4 @@ export const getCompanyDirectory = cache(async (): Promise<CompanyCard[]> => {
     openJobs: company.jobs.filter((job) => isFrontendRole(job.title)).length,
     sources: company.sources,
   }));
-});
+}

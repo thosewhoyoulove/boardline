@@ -37,6 +37,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       className={`${outfit.variable} ${newsreader.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="flex min-h-full flex-col">
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              '(function(){if(!location.search)return;var s=document.createElement("style");s.id="board-pending-style";s.textContent="[data-job-results]{display:none!important}[data-job-pending]{display:block!important}";document.head.appendChild(s);})();',
+          }}
+        />
         <a
           href="#content"
           className="sr-only focus:not-sr-only focus:absolute focus:top-3 focus:left-3 focus:z-50 focus:rounded-md focus:bg-card focus:px-3 focus:py-2"
