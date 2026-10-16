@@ -12,6 +12,19 @@ export function formatDate(value: Date | string | null | undefined): string {
   return dateFormat.format(date);
 }
 
+const updateTimeFormat = new Intl.DateTimeFormat("zh-CN", {
+  month: "short",
+  day: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+  timeZone: "Asia/Shanghai",
+});
+
+export function formatUpdateTime(value: string): string {
+  return updateTimeFormat.format(new Date(value));
+}
+
 export function formatLocations(locations: string[]): string {
   return locations.length > 0 ? locations.join(" · ") : "地点未标明";
 }

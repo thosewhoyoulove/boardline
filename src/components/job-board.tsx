@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { JobListSkeleton } from "@/components/job-skeletons";
+import { JobPagination } from "@/components/job-pagination";
 import { Badge } from "@/components/ui/badge";
 import {
   BOARD_QUERY_EVENT,
@@ -15,9 +16,13 @@ import {
   type BoardQuery,
 } from "@/lib/board-query";
 import type { CompanyOption, JobListItem } from "@/lib/db/queries";
-import { formatDate, formatLocations, isFresh } from "@/lib/format";
+import { formatDate, formatLocations, formatUpdateTime, isFresh } from "@/lib/format";
 
-export function JobBoard({ jobs, companies }: { jobs: JobListItem[]; companies: CompanyOption[] }) {
+export function JobBoard({ jobs, companies, lastUpdatedAt }: {
+  jobs: JobListItem[];
+  companies: CompanyOption[];
+  lastUpdatedAt: string | null;
+}) {
   const [query, setQuery] = useState<BoardQuery>(emptyBoardQuery);
   const [urlReady, setUrlReady] = useState(false);
   const [now, setNow] = useState<number | null>(null);
@@ -57,6 +62,17 @@ export function JobBoard({ jobs, companies }: { jobs: JobListItem[]; companies: 
         <JobListSkeleton />
       </div>
       <div data-job-results>
+        <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1.5">
+          <h2 id="job-count" className="scroll-mt-6 text-sm text-muted-foreground" aria-live="polite">
+            {companyName ? `${companyName} · ` : ""}
+            <span className="font-medium tabular-nums text-foreground">{matched.length}</span> 个在招职位
+          </h2>
+          {lastUpdatedAt ? (
+            <p className="text-xs text-muted-foreground" title="最近一次抓取并写入职位的时间（北京时间）">
+              最近更新：<time dateTime={lastUpdatedAt}>{formatUpdateTime(lastUpdatedAt)}</time>
+            </p>
+          ) : null}
+        </div>
         {matched.length === 0 ? (
           <div className="rounded-2xl border border-dashed bg-card px-5 py-10 text-center">
             <h2 className="font-display text-2xl">没有匹配的职位</h2>
@@ -71,43 +87,21 @@ export function JobBoard({ jobs, companies }: { jobs: JobListItem[]; companies: 
           </div>
         ) : (
           <section aria-labelledby="job-count">
-            <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
-              <h2 id="job-count" className="text-sm text-muted-foreground">
-                {companyName ? `${companyName} · ` : ""}
-                {matched.length} 个在招职位
-                {matched.length > PAGE_SIZE ? `，第 ${page} / ${pages} 页` : ""}
-              </h2>
-            </div>
             <ol className="divide-y overflow-hidden rounded-2xl border bg-card">
               {visible.map((job) => (
                 <JobRow key={job.id} job={job} now={now} />
               ))}
             </ol>
             {pages > 1 ? (
-              <nav aria-label="分页" className="mt-4 flex items-center justify-between text-sm">
-                {page > 1 ? (
-                  <button
-                    type="button"
-                    className="rounded-full border bg-card px-3 py-1.5 hover:bg-muted"
-                    onClick={() => writeBoardQuery({ ...query, page: page - 1 })}
-                  >
-                    上一页
-                  </button>
-                ) : (
-                  <span />
-                )}
-                {page < pages ? (
-                  <button
-                    type="button"
-                    className="rounded-full border bg-card px-3 py-1.5 hover:bg-muted"
-                    onClick={() => writeBoardQuery({ ...query, page: page + 1 })}
-                  >
-                    下一页
-                  </button>
-                ) : (
-                  <span />
-                )}
-              </nav>
+              <div className="mt-4">
+                <JobPagination
+                  page={page} pages={pages} total={matched.length} pageSize={PAGE_SIZE} label="职位列表分页"
+                  onChange={(nextPage) => {
+                    writeBoardQuery({ ...query, page: nextPage });
+                    document.getElementById("job-count")?.scrollIntoView({ block: "start" });
+                  }}
+                />
+              </div>
             ) : null}
           </section>
         )}

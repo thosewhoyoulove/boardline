@@ -10,5 +10,5 @@ export const metadata: Metadata = {
 
 export default async function HomePage() {
   const board = await getPublishedBoard();
-  return <JobBoard jobs={board.jobs} companies={board.companies} />;
+  return <JobBoard jobs={board.jobs} companies={board.companies} lastUpdatedAt={board.lastUpdatedAt} />;
 }

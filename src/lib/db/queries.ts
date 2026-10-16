@@ -43,6 +43,7 @@ export type CompanyCard = CompanyOption & {
 export type PublishedBoard = {
   jobs: JobListItem[];
   companies: CompanyOption[];
+  lastUpdatedAt: string | null;
 };
 
 export function readLocations(value: unknown): string[] {
@@ -69,6 +70,7 @@ export async function getPublishedBoard(): Promise<PublishedBoard> {
         descriptionText: true,
         publishTime: true,
         firstSeenAt: true,
+        lastSeenAt: true,
         company: { select: { slug: true, displayName: true } },
       },
     }),
@@ -94,6 +96,9 @@ export async function getPublishedBoard(): Promise<PublishedBoard> {
         companyName: job.company.displayName,
       })),
     companies,
+    lastUpdatedAt: rows.length
+      ? new Date(rows.reduce((latest, job) => Math.max(latest, job.lastSeenAt.getTime()), 0)).toISOString()
+      : null,
   };
 }
 
