@@ -1,6 +1,5 @@
-// Local MVP uses SQLite. To switch to Postgres/Neon, change provider to
-// "postgresql", point DATABASE_URL at Neon, then create a fresh migration.
-// See README.
+// Local SQLite schema. Production uses prisma/postgres/schema.prisma.
+// Keep models in both schemas in sync; migration histories stay separate.
 
 generator client {
   provider = "prisma-client"
@@ -9,6 +8,14 @@ generator client {
 
 datasource db {
   provider = "sqlite"
+}
+
+model ScrapeLease {
+  id        String   @id
+  owner     String
+  expiresAt DateTime
+
+  @@map("scrape_leases")
 }
 
 model Company {

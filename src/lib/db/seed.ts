@@ -28,7 +28,6 @@ export async function ensureDemoCompanies(): Promise<{ companies: number; source
       update: {
         displayName: demo.displayName,
         referralUrl: demo.referralUrl,
-        active: true,
       },
     });
 
@@ -48,15 +47,6 @@ export async function ensureDemoCompanies(): Promise<{ companies: number; source
         },
       });
       sourcesCreated += 1;
-    } else {
-      await prisma.dataSource.update({
-        where: { id: existing.id },
-        data: {
-          recruitmentType: demo.recruitmentType,
-          config: demo.config,
-          isActive: true,
-        },
-      });
     }
   }
 

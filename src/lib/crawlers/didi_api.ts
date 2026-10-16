@@ -1,3 +1,5 @@
+import { collectPages } from "@/lib/crawlers/pagination";
+import { readCrawlSettings } from "@/lib/crawlers/settings";
 import { fetchJson, readJsonFixture } from "@/lib/crawlers/public-json";
 import { buildChineseJob, FRONTEND_QUERY, mapFrontendJobs, parseChineseDate, readPageSize } from "@/lib/crawlers/text";
 import type { AdapterContext, AdapterFetchResult, CrawlerAdapter, NormalizedJob } from "@/lib/crawlers/types";
@@ -56,23 +58,33 @@ async function loadFixture(note: string): Promise<AdapterFetchResult> {
   return { jobs: normalizeDidiJobs(items), authoritative: false, note };
 }
 
-async function fetchLive(pageSize: number): Promise<AdapterFetchResult> {
-  const url = new URL(`${ORIGIN}/recruit-portal-service/api/job/front/list`);
-  url.searchParams.set("page", "1");
-  url.searchParams.set("size", String(pageSize));
-  url.searchParams.set("jobName", FRONTEND_QUERY);
-  const payload = (await fetchJson(url.toString(), {
-    headers: {
-      referer: `${ORIGIN}/social/list`,
-      origin: ORIGIN,
+async function fetchLive(config: unknown): Promise<AdapterFetchResult> {
+  const pageSize = readPageSize(config);
+  const { maxPages } = readCrawlSettings(config);
+
+  const scan = await collectPages({
+    maxPages,
+    identify: (item) => (item as { jdId: unknown } | null)?.jdId,
+    fetchPage: async (pageNumber) => {
+      const url = new URL(`${ORIGIN}/recruit-portal-service/api/job/front/list`);
+      url.searchParams.set("page", String(pageNumber));
+      url.searchParams.set("size", String(pageSize));
+      url.searchParams.set("jobName", FRONTEND_QUERY);
+      const payload = (await fetchJson(url.toString(), {
+        headers: {
+          referer: `${ORIGIN}/social/list`,
+          origin: ORIGIN,
+        },
+      })) as { data?: { items?: unknown } };
+      const items = payload.data?.items;
+      if (!Array.isArray(items)) throw new Error("滴滴职位列表缺少 data.items");
+      return { items: items };
     },
-  })) as { data?: { items?: unknown } };
-  const items = payload.data?.items;
-  if (!Array.isArray(items)) throw new Error("滴滴职位列表缺少 data.items");
+  });
   return {
-    jobs: normalizeDidiJobs(items),
-    authoritative: true,
-    note: `滴滴招聘公开接口，前端社招最近 ${items.length} 条`,
+    jobs: normalizeDidiJobs(scan.items),
+    authoritative: scan.complete,
+    note: scan.note,
   };
 }
 
@@ -80,15 +92,6 @@ export const didiApiAdapter: CrawlerAdapter = {
   sourceType: SOURCE_TYPE,
   async fetchJobs(context: AdapterContext): Promise<AdapterFetchResult> {
     if (context.offline) return loadFixture(`离线样例 ${FIXTURE}`);
-    try {
-      return await fetchLive(readPageSize(context.config));
-    } catch (error) {
-      const reason = error instanceof Error ? error.message : "未知错误";
-      try {
-        return await loadFixture(`接口失败，改用离线样例（${reason}）`);
-      } catch {
-        throw error;
-      }
-    }
+    return fetchLive(context.config);
   },
 };

@@ -1,0 +1,42 @@
+name: Refresh production jobs
+
+on:
+  schedule:
+    # UTC 00:23, 06:23, 12:23, 18:23 (Beijing 08:23, 14:23, 20:23, 02:23).
+    - cron: "23 */6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-scrape
+  cancel-in-progress: false
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DATABASE_DIRECT_URL: ${{ secrets.DATABASE_DIRECT_URL }}
+      SCRAPE_MAX_PAGES: "20"
+      SCRAPE_REQUEST_DELAY_MS: "1000"
+      SCRAPE_RETRIES: "2"
+      SCRAPE_TIMEOUT_MS: "20000"
+      SCRAPE_DEACTIVATE_AFTER_HOURS: "48"
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Check database configuration
+        run: |
+          node -e 'if (!/^postgres(ql)?:\/\//.test(process.env.DATABASE_URL || "")) { console.error("Set the DATABASE_URL repository secret to the production PostgreSQL connection string."); process.exit(1); }'
+      - run: npm ci
+      - run: npm run db:deploy
+      - name: Fetch official job postings
+        run: npm run scrape

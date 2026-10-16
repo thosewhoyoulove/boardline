@@ -1,3 +1,4 @@
+import { fetchJson } from "@/lib/crawlers/public-json";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 
@@ -8,7 +9,6 @@ import { safeHttpUrl } from "@/lib/http";
 
 const SOURCE_TYPE = "ashby_api";
 const USER_AGENT = "BoardlineBot/0.1 (+https://localhost; public Ashby posting API; no login)";
-const REQUEST_TIMEOUT_MS = 20_000;
 
 type AshbySecondaryLocation = {
   location?: string | null;
@@ -132,18 +132,7 @@ export async function loadAshbyFixture(boardSlug: string): Promise<unknown | nul
 
 async function fetchAshbyBoard(boardSlug: string): Promise<unknown> {
   const url = `https://api.ashbyhq.com/posting-api/job-board/${encodeURIComponent(boardSlug)}`;
-  const response = await fetch(url, {
-    headers: {
-      accept: "application/json",
-      "user-agent": USER_AGENT,
-    },
-    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-    cache: "no-store",
-  });
-  if (!response.ok) {
-    throw new Error(`Ashby HTTP ${response.status}（${boardSlug}）`);
-  }
-  return response.json() as Promise<unknown>;
+  return fetchJson(url, { headers: { "user-agent": USER_AGENT } });
 }
 
 async function fromFixture(boardSlug: string, note: string): Promise<AdapterFetchResult> {
@@ -166,20 +155,11 @@ export const ashbyApiAdapter: CrawlerAdapter = {
       return fromFixture(boardSlug, `离线样例 fixtures/ashby/${boardSlug}.sample.json`);
     }
 
-    try {
-      const payload = await fetchAshbyBoard(boardSlug);
-      return {
-        jobs: normalizeAshbyPayload(payload, boardSlug),
-        authoritative: true,
-        note: "Ashby 公开 posting API",
-      };
-    } catch (error) {
-      const reason = error instanceof Error ? error.message : "未知错误";
-      try {
-        return await fromFixture(boardSlug, `接口失败，改用离线样例（${reason}）`);
-      } catch {
-        throw error;
-      }
-    }
+    const payload = await fetchAshbyBoard(boardSlug);
+    return {
+      jobs: normalizeAshbyPayload(payload, boardSlug),
+      authoritative: true,
+      note: "Ashby 公开 posting API",
+    };
   },
 };

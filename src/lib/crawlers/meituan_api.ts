@@ -1,3 +1,5 @@
+import { collectPages, pageTotal } from "@/lib/crawlers/pagination";
+import { readCrawlSettings } from "@/lib/crawlers/settings";
 import { fetchJson, readJsonFixture } from "@/lib/crawlers/public-json";
 import { buildChineseJob, FRONTEND_QUERY, mapFrontendJobs, parseEpoch, readPageSize } from "@/lib/crawlers/text";
 import type { AdapterContext, AdapterFetchResult, CrawlerAdapter, NormalizedJob } from "@/lib/crawlers/types";
@@ -52,28 +54,40 @@ async function loadFixture(note: string): Promise<AdapterFetchResult> {
   return { jobs: normalizeMeituanJobs(list), authoritative: false, note };
 }
 
-async function fetchLive(pageSize: number): Promise<AdapterFetchResult> {
-  const payload = (await fetchJson(`${ORIGIN}/api/official/job/getJobList`, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      origin: ORIGIN,
-      referer: `${ORIGIN}/web/social`,
-    },
-    body: JSON.stringify({
-      page: { pageNo: 1, pageSize },
-      jobShareType: "1",
-      keywords: FRONTEND_QUERY,
-      jobType: [{ code: "3", subCode: [] }],
-    }),
-  })) as { data?: { list?: unknown } };
+async function fetchLive(config: unknown): Promise<AdapterFetchResult> {
+  const pageSize = readPageSize(config);
+  const { maxPages } = readCrawlSettings(config);
 
-  const list = payload.data?.list;
-  if (!Array.isArray(list)) throw new Error("美团职位列表缺少 data.list");
+  const scan = await collectPages({
+    maxPages,
+    identify: (item) => (item as { jobUnionId: unknown } | null)?.jobUnionId,
+    fetchPage: async (pageNumber) => {
+      const payload = (await fetchJson(`${ORIGIN}/api/official/job/getJobList`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          origin: ORIGIN,
+          referer: `${ORIGIN}/web/social`,
+        },
+        body: JSON.stringify({
+          page: { pageNo: pageNumber, pageSize },
+          jobShareType: "1",
+          keywords: FRONTEND_QUERY,
+          jobType: [{ code: "3", subCode: [] }],
+        }),
+      })) as { status?: number; data?: { list?: unknown; page?: { totalCount?: unknown } } };
+
+      const list = payload.data?.list;
+      if ((payload.status !== undefined && payload.status !== 1) || !Array.isArray(list)) {
+        throw new Error("美团职位列表缺少有效的 data.list");
+      }
+      return { items: list, total: pageTotal(payload.data?.page?.totalCount) };
+    },
+  });
   return {
-    jobs: normalizeMeituanJobs(list),
-    authoritative: true,
-    note: `美团招聘公开接口，前端社招最近 ${list.length} 条`,
+    jobs: normalizeMeituanJobs(scan.items),
+    authoritative: scan.complete,
+    note: scan.note,
   };
 }
 
@@ -81,15 +95,6 @@ export const meituanApiAdapter: CrawlerAdapter = {
   sourceType: SOURCE_TYPE,
   async fetchJobs(context: AdapterContext): Promise<AdapterFetchResult> {
     if (context.offline) return loadFixture(`离线样例 ${FIXTURE}`);
-    try {
-      return await fetchLive(readPageSize(context.config));
-    } catch (error) {
-      const reason = error instanceof Error ? error.message : "未知错误";
-      try {
-        return await loadFixture(`接口失败，改用离线样例（${reason}）`);
-      } catch {
-        throw error;
-      }
-    }
+    return fetchLive(context.config);
   },
 };

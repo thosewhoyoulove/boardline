@@ -2,4 +2,7 @@ node_modules
 .next
 src/generated
 .git
+.vercel
+.env*.local
+*.db
 *.db-journal

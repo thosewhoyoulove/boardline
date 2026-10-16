@@ -2,6 +2,9 @@ import { getAdapter } from "@/lib/crawlers/registry";
 import { ensureDemoCompanies } from "@/lib/db/seed";
 import { getPrisma } from "@/lib/db/client";
 import { upsertNormalizedJobs } from "@/lib/db/upsert";
+import { withCrawlSettings } from "@/lib/crawlers/public-json";
+import { readCrawlSettings } from "@/lib/crawlers/settings";
+import { withScrapeLease } from "@/lib/crawlers/lease";
 
 export type ScrapeSourceResult = {
   company: string;
@@ -11,6 +14,7 @@ export type ScrapeSourceResult = {
   upserted: number;
   deactivated: number;
   authoritative: boolean;
+  status: "complete" | "partial" | "fixture" | "failed";
   note?: string;
   error?: string;
 };
@@ -28,15 +32,22 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-export async function runScrape(options: { offline?: boolean } = {}): Promise<ScrapeReport> {
+export type ScrapeOptions = { offline?: boolean; companies?: string[] };
+
+export async function runScrape(options: ScrapeOptions = {}): Promise<ScrapeReport> {
+  return withScrapeLease((assertHeld) => runScrapeWithLease(options, assertHeld));
+}
+
+async function runScrapeWithLease(options: ScrapeOptions, assertHeld: () => Promise<void>): Promise<ScrapeReport> {
   const started = Date.now();
   const offline = Boolean(options.offline);
   const ensured = await ensureDemoCompanies();
   const sources = await getPrisma().dataSource.findMany({
-    where: { isActive: true, company: { active: true } },
+    where: { isActive: true, company: { active: true, ...(options.companies?.length ? { slug: { in: options.companies } } : {}) } },
     include: { company: true },
     orderBy: { company: { displayName: "asc" } },
   });
+  if (options.companies?.length && sources.length === 0) throw new Error("指定公司不存在或已停用");
 
   const results: ScrapeSourceResult[] = [];
 
@@ -53,13 +64,17 @@ export async function runScrape(options: { offline?: boolean } = {}): Promise<Sc
         upserted: 0,
         deactivated: 0,
         authoritative: false,
+        status: "failed",
         error: `没有注册适配器：${source.sourceType}`,
       });
       continue;
     }
 
     try {
-      const fetched = await adapter.fetchJobs({ config: source.config, offline });
+      await assertHeld();
+      const fetched = await withCrawlSettings(readCrawlSettings(source.config), () =>
+        adapter.fetchJobs({ config: source.config, offline }));
+      await assertHeld();
       const written = await upsertNormalizedJobs({
         companyId: source.companyId,
         sourceId: source.id,
@@ -69,7 +84,8 @@ export async function runScrape(options: { offline?: boolean } = {}): Promise<Sc
       results.push({
         company: source.company.displayName,
         sourceType: source.sourceType,
-        ok: true,
+        ok: offline || fetched.authoritative,
+        status: offline ? "fixture" : fetched.authoritative ? "complete" : "partial",
         fetched: fetched.jobs.length,
         upserted: written.upserted,
         deactivated: written.deactivated,
@@ -85,6 +101,7 @@ export async function runScrape(options: { offline?: boolean } = {}): Promise<Sc
         upserted: 0,
         deactivated: 0,
         authoritative: false,
+        status: "failed",
         error: error instanceof Error ? error.message : "抓取失败",
       });
     }
@@ -108,11 +125,12 @@ export function formatScrapeReport(report: ScrapeReport): string {
   ];
 
   for (const result of report.results) {
-    if (!result.ok) {
+    if (result.status === "failed") {
       lines.push(`[${result.company}] ${result.sourceType} 失败：${result.error}`);
       continue;
     }
-    const mode = result.authoritative ? "权威列表，已同步下线" : "非权威样例，未下线缺失职位";
+    const mode = result.status === "complete" ? "完整扫描，仅下线超过宽限期的缺失职位"
+      : result.status === "fixture" ? "离线样例，保留旧岗位" : "部分扫描，保留旧岗位";
     lines.push(
       `[${result.company}] ${result.sourceType} 取得 ${result.fetched} 条，写入 ${result.upserted}，下线 ${result.deactivated}（${mode}）${result.note ? ` — ${result.note}` : ""}`,
     );

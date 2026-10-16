@@ -10,7 +10,7 @@
 
 ### 环境
 
-- Node.js 20.19 或更新版本（建议 22）
+- Node.js 22.x（与项目声明的运行环境一致）
 - npm
 
 本地默认使用 SQLite，不需要安装数据库。部署到 Vercel 时改用 Neon 上的 Postgres，见下文。
@@ -37,17 +37,58 @@ npm run scrape
 脚本会：
 
 1. 写入腾讯、字节跳动、阿里巴巴、美团、京东、小米、滴滴、携程的社会招聘数据源。早期的 Linear、Notion、Ashby 示例会停用，不再抓取。
-2. 按数据源调用适配器。公司之间间隔 800ms，腾讯的职位详情之间再间隔 500ms，并带上可识别的 User-Agent。
+2. 按数据源串行调用适配器。公司之间间隔 800ms；同一网站的列表、详情和 CSRF 预请求统一排队，默认至少间隔 1 秒，并增加 0–250ms 抖动，带上可识别的 User-Agent。
 3. 用「前端」向公开接口检索，再只保留标题是前端或 AI 前端、且职位要求含中文的社会招聘。产品、运营、算法、后端、客户端、测试、校招和实习都会丢掉。按 `uniqueKey` upsert。
-4. 每次只取各公司最近一页（腾讯 20 条，其余 30 条）。实时接口完整返回这一页时，把该来源里这次没出现的职位标成 `isActive = false`。
+4. 自动翻页（腾讯每页 20 条，其余 30 条），默认每家公司最多 20 页。仅在完整读到列表末尾、没有分页重复或详情失败，且至少收录一个岗位时，才将超过 48 小时没有再次见到的岗位标为 `isActive = false`。页数上限、异常空列表、后续页失败都不会导致旧岗位下线。
 
-没有外网，或公开接口暂时失败时，会改用 `fixtures/cn/*.sample.json`。样例不是完整列表，因此**不会**把缺失职位下线。也可以强制离线：
+在线抓取失败会报告错误，保留已有岗位，不会自动导入样例。后续页失败时保留本轮已取得的有效岗位，并将本轮标为部分扫描、退出码为 1。只有显式离线模式才导入 `fixtures/cn/*.sample.json`，样例**不会**把缺失职位下线：
 
 ```bash
 npm run scrape -- --offline
 ```
 
-只抓取 `active = true` 的公司，以及 `isActive = true` 的数据源。
+只抓取 `active = true` 的公司，以及 `isActive = true` 的数据源。再次初始化不会覆盖已有来源的配置，也不会重新启用手动停用的公司或来源。
+
+### 频率、重试与定时运行
+
+单次抓取，或只检查指定公司：
+
+```bash
+npm run scrape
+npm run scrape -- --company meituan,tencent
+```
+
+启动独立常驻 worker，立即抓取一轮，之后默认每 6 小时执行一次：
+
+```bash
+npm run scrape:watch
+npm run scrape:watch -- --interval-minutes 60
+```
+
+worker 必须持续运行；关闭终端、电脑休眠或进程退出后不会继续调度。它不是开机自启服务。生产环境应使用进程管理器或容器运行，Web 应用与 worker 必须连接同一个持久数据库。Vercel 请求函数不适合执行可能持续数分钟的全量抓取，本项目仍不开放抓取 HTTP 接口。
+
+抓取间隔范围为 15–10080 分钟。长任务错过的轮次会跳过，不会补发密集请求。`Ctrl+C` / `SIGTERM` 会等待当前轮次结束，再释放数据库任务锁。数据库租约每 30 秒续期，异常退出后最多约 2 分钟可恢复；多个 worker 或手动命令共享一把锁。
+
+在 `.env` 设置以下选项（默认值见 `.env.example`）：
+
+```dotenv
+SCRAPE_MAX_PAGES=20
+SCRAPE_REQUEST_DELAY_MS=1000
+SCRAPE_RETRIES=2
+SCRAPE_TIMEOUT_MS=20000
+SCRAPE_INTERVAL_MINUTES=360
+SCRAPE_DEACTIVATE_AFTER_HOURS=48
+```
+
+每个 `data_sources.config` 也可以单独覆盖 `pageSize`、`maxPages`、`requestDelayMs`、`retries`、`timeoutMs`。例如：
+
+```json
+{ "pageSize": 30, "maxPages": 50, "requestDelayMs": 1500, "retries": 2, "timeoutMs": 20000 }
+```
+
+网络错误、408/425/429 以及暂时性 5xx 错误默认最多重试 2 次，采用指数退避；403 等永久错误不重试。遵守 `Retry-After`，等待时间超过 60 秒时停止该来源本轮请求，并保留其冷却时间。短页面不直接视为结束，以避免接口限制每页数量造成漏抓；接口忽略分页或返回重叠数据时，本轮不执行下线。
+
+已有安装升级后，先执行 `npx prisma migrate deploy` 和 `npx prisma generate`，创建抓取任务锁表。抓取内容未变化时只更新最近见到时间、发布日期和在招状态，避免重复写入职位正文。
 
 ### 页面
 
@@ -74,34 +115,30 @@ npm run scrape -- --offline
 
 ### 换到 Postgres / Neon
 
-SQLite 迁移不能直接套到 Postgres。切换时用一套新的迁移：
+本地 SQLite 和生产 Postgres 使用独立的 schema 和迁移历史，不需要改 provider 或删除本地迁移。`prisma.config.ts` 根据 `DATABASE_URL` 自动选择：本地使用 `prisma/schema.prisma`，Postgres 使用 `prisma/postgres/schema.prisma`。修改数据模型时同步两份 schema，分别生成迁移。
 
-1. 在 [Neon](https://neon.tech) 创建一个免费 Postgres 项目。
-2. 把 `prisma/schema.prisma` 里的 `provider` 改成 `"postgresql"`。
-3. 删掉 `prisma/migrations`（里面是 SQLite 方言）。
-4. 设置连接串。应用运行时可以用 Neon 的 pooled URL；`prisma migrate` 更适合直连（非 pooler）URL。
-
-   ```bash
-   DATABASE_URL="postgresql://USER:PASSWORD@HOST/DB?sslmode=require" npx prisma migrate dev --name init_postgres
-   ```
-
-5. `src/lib/db/client.ts` 看到 `postgres://` 或 `postgresql://` 时会使用 `@prisma/adapter-pg`。改完 provider 后执行 `npx prisma generate`。
-6. 再跑 `npm run scrape`。
-
-不要把真实数据库密码写进已提交的 `.env`。本地文件只保留 SQLite 地址；生产环境变量放在 Vercel 或 Neon 的控制台。
+1. 在 [Neon](https://neon.tech) 创建 Postgres 项目，获取连接串。
+2. 在运行环境设置 `DATABASE_URL` 为 pooled 连接串；可选 `DATABASE_DIRECT_URL` 为同一数据库的直连地址，仅供迁移使用。不要把真实密码写进仓库的 `.env`。
+3. 执行 `npx prisma generate`、`npm run db:deploy`、`npm run scrape`，初始化数据库并抓取真实职位。已有 SQLite 快照不会自动搬入 Postgres。
 
 ### 部署到 Vercel（不自建服务器）
 
-1. 按上一节把数据库换成 Neon，并提交 Postgres 迁移。
-2. 把代码推到 Git 托管，在 Vercel 导入项目。
-3. 设置环境变量 `DATABASE_URL` 为 Neon 连接串。
-4. 构建命令：
+1. 在 Vercel 的 Production 环境设置 `DATABASE_URL`，以及可选的 `DATABASE_DIRECT_URL`。Preview 若部署应使用独立数据库，避免预览改动影响生产。
+2. 构建命令已写入 `vercel.json`：
 
    ```bash
-   npx prisma generate && npx prisma migrate deploy && next build
+   npm run build:vercel
    ```
 
-Vercel 的 Serverless 文件系统是临时的，不要把 SQLite 文件当成生产库。Hobby 计划可以之后用 Cron 定时抓取，但触发地址必须校验密钥，避免公开接口被拿去反复请求招聘方。这个 MVP 没有开放抓取 HTTP 接口。
+构建会检查生产数据库、生成对应客户端、执行 Postgres 迁移，再构建页面；缺少 Postgres 配置会失败，避免发布旧 SQLite 快照。生产页面只读取持久数据库，数据缓存每 60 秒可重新验证、最长 300 秒后过期（刷新页面时读取）。
+
+### GitHub Actions 定时抓取
+
+1. 在仓库 Settings → Secrets and variables → Actions 设置 `DATABASE_URL`，与 Vercel 指向同一个生产数据库。可选设置 `DATABASE_DIRECT_URL`。
+2. 将 `.github/workflows/scrape.yml` 发布到默认分支，启用 Actions。
+3. 首次部署前，在 Actions → Refresh production jobs → Run workflow 手动运行一次；确认抓取日志和网页数据，再启用生产部署。
+
+之后北京时间每天约 02:23、08:23、14:23、20:23 自动抓取（GitHub 调度可能延迟）。任务先部署数据库迁移，再运行抓取；GitHub 并发组和数据库租约避免重复任务。失败会让工作流显示失败，部分成功的数据仍保留。检查 Actions 日志和职位详情的「最近发现」判断更新是否正常，列表日期优先显示招聘方的发布日期。任务在 GitHub 执行，无需本地电脑常开，也不依赖 Vercel 抓取接口。
 
 ### 伦理与使用边界
 
@@ -122,7 +159,7 @@ npm test
 ### 下一步
 
 - 更多大陆公司的公开招聘接口，以及校园招聘。
-- 定时抓取：GitHub Actions，或带 `CRON_SECRET` 的 Vercel Cron。
+- 生产 worker 的进程托管，以及持久抓取历史和失败告警。
 - 新职位提醒：对比 `firstSeenAt` / `uniqueKey`，发邮件或 Slack。
 - Postgres 全文检索，替代现在的内存关键词过滤。
 - 同一职位多来源去重，以及校园招聘数据源。
@@ -133,7 +170,7 @@ Boardline is a small public job board. It fetches roles from employers' own publ
 
 ### Setup
 
-Requires Node.js 20.19+ (22 recommended).
+Requires Node.js 22.x, matching the project's declared runtime.
 
 ```bash
 npm install
@@ -146,15 +183,21 @@ Open [http://localhost:3000](http://localhost:3000). The committed `.env` points
 
 ### Scrape
 
-`npm run scrape` seeds social-hire sources for Tencent, ByteDance, Alibaba, Meituan, JD, Xiaomi, DiDi, and Trip.com, and deactivates the earlier Linear, Notion, and Ashby demos. It searches each public API for frontend roles, then keeps only titles that are frontend or AI-frontend engineering with Chinese requirements. Each live page (20 roles for Tencent, 30 for the others) is the current set for that source. Requests are sequential, with an identifying User-Agent.
+`npm run scrape` seeds social-hire sources for Tencent, ByteDance, Alibaba, Meituan, JD, Xiaomi, DiDi, and Trip.com, and deactivates the earlier Linear, Notion, and Ashby demos. It searches each public API for frontend roles, then keeps only titles that are frontend or AI-frontend engineering with Chinese requirements. Sources paginate (20 roles per page for Tencent, 30 for the others), up to 20 pages by default. Only exhausted, nonempty, complete scans may deactivate missing roles, after a 48-hour grace period. Truncated, overlapping or failed scans preserve existing jobs. Same-origin requests are serialized with at least a one-second delay and an identifying User-Agent.
 
-If the network fails, the adapter falls back to `fixtures/cn/*.sample.json`. Fixture imports are not authoritative and do not deactivate other rows. Force that path with:
+Online failures are reported without substituting fixtures. Successful earlier pages are retained as a partial scan and the command exits with status 1. Explicit fixture imports are non-authoritative and never deactivate other rows:
 
 ```bash
 npm run scrape -- --offline
 ```
 
 The seeded adapters call the public career JSON used by each employer's own site. No login is required. `ashby_api` remains available. Add another adapter in `src/lib/crawlers/` and register it in `registry.ts`.
+
+### Scheduling
+
+Run `npm run scrape:watch` for an immediate scan followed by a scan every 6 hours, or `npm run scrape:watch -- --interval-minutes 60`. The worker must remain running; it is not an OS startup service. Deploy it with a process manager and the same persistent database as the web app. Do not run long full scans in a Vercel HTTP function.
+
+Use `npm run scrape -- --company meituan,tencent` to select sources. A shared renewable database lease prevents overlapping runs. Apply `npx prisma migrate deploy` and `npx prisma generate` after upgrading. Source settings and environment defaults are documented in the Chinese section and `.env.example`. Automatic retries honor `Retry-After`; live failures never silently import sample jobs.
 
 ### Pages
 
@@ -164,26 +207,17 @@ The seeded adapters call the public career JSON used by each employer's own site
 
 ### Postgres / Neon
 
-SQLite migrations are not portable. To switch:
-
-1. Create a free Neon Postgres database.
-2. Set `provider = "postgresql"` in `prisma/schema.prisma`.
-3. Delete `prisma/migrations`.
-4. Run `npx prisma migrate dev --name init_postgres` with a direct (non-pooler) `DATABASE_URL`.
-5. `src/lib/db/client.ts` selects `@prisma/adapter-pg` when the URL starts with `postgres://` or `postgresql://`. Run `npx prisma generate` after changing the provider.
-6. Run `npm run scrape` again.
-
-Keep production credentials in the host environment, not in the committed `.env`.
+Set `DATABASE_URL` to a persistent Postgres connection string. `prisma.config.ts` automatically selects the separate Postgres schema and migration history in `prisma/postgres/`; local SQLite migrations remain intact. Optionally set `DATABASE_DIRECT_URL` for migrations against the same database. Run `npx prisma generate`, `npm run db:deploy`, and `npm run scrape` for initial data. SQLite snapshots are not imported automatically. Keep both schemas' models in sync and keep credentials outside git.
 
 ### Deploy on Vercel
 
-Use Neon, not SQLite. Import the Git repo, set `DATABASE_URL`, and set the build command to:
+Set the Vercel production `DATABASE_URL` (and optional `DATABASE_DIRECT_URL`). The configured build command is:
 
 ```bash
-npx prisma generate && npx prisma migrate deploy && next build
+npm run build:vercel
 ```
 
-Serverless instances do not have a durable local disk. A later cron should be authenticated; this MVP does not expose a public scrape endpoint.
+It requires Postgres, generates the client, applies migrations, then builds. Configure matching GitHub Actions repository secrets and manually run **Refresh production jobs** before the first deployment. `.github/workflows/scrape.yml` then runs every six hours at minute 23 UTC (scheduling may be delayed), using a concurrency group and shared database lease. Failures appear in Actions; partial results are preserved. Pages revalidate cached database reads after 60 seconds with a 300-second expiration. Preview deployments should use a separate database.
 
 ### Ethics
 
@@ -191,4 +225,4 @@ Use public, unauthenticated job-board endpoints only. Respect robots.txt, terms 
 
 ### Next
 
-More public-board adapters, a locked-down cron, alerts for newly seen `uniqueKey`s, Postgres full-text search, and deduplication across sources.
+More public-board adapters, managed production workers and scrape history, alerts for newly seen `uniqueKey`s, Postgres full-text search, and deduplication across sources.

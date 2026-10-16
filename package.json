@@ -8,12 +8,15 @@
   "scripts": {
     "dev": "next dev",
     "build": "prisma generate && next build",
+    "build:vercel": "node scripts/build-production.mjs",
     "start": "next start",
     "lint": "eslint",
     "postinstall": "prisma generate",
     "scrape": "tsx scripts/scrape.ts",
-    "test": "tsx --test src/lib/crawlers/ashby_api.test.ts src/lib/crawlers/cn_jobs.test.ts",
+    "scrape:watch": "tsx scripts/scrape.ts --watch",
+    "test": "tsx --test src/lib/crawlers/*.test.ts src/lib/db/*.test.ts",
     "db:migrate": "prisma migrate dev",
+    "db:deploy": "prisma migrate deploy",
     "db:generate": "prisma generate"
   },
   "dependencies": {
@@ -21,7 +24,6 @@
     "@prisma/adapter-better-sqlite3": "^7.10.0",
     "@prisma/adapter-pg": "^7.10.0",
     "@prisma/client": "^7.10.0",
-    "better-sqlite3": "^13.0.3",
     "class-variance-authority": "^0.7.1",
     "cn": "^0.4.0",
     "dotenv": "^18.0.7",
@@ -37,7 +39,6 @@
   },
   "devDependencies": {
     "@tailwindcss/turbopack": "^4",
-    "@types/better-sqlite3": "^9.6.0",
     "@types/node": "^20",
     "@types/pg": "^8.23.1",
     "@types/react": "^19",

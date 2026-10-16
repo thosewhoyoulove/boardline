@@ -1,4 +1,6 @@
-import { fetchJson, readJsonFixture } from "@/lib/crawlers/public-json";
+import { collectPages } from "@/lib/crawlers/pagination";
+import { readCrawlSettings } from "@/lib/crawlers/settings";
+import { fetchJson, fetchResponse, readJsonFixture } from "@/lib/crawlers/public-json";
 import { buildChineseJob, FRONTEND_QUERY, mapFrontendJobs, parseEpoch, readPageSize, uniqueLocations } from "@/lib/crawlers/text";
 import type { AdapterContext, AdapterFetchResult, CrawlerAdapter, NormalizedJob } from "@/lib/crawlers/types";
 
@@ -62,8 +64,11 @@ async function loadFixture(note: string): Promise<AdapterFetchResult> {
   return { jobs: normalizeByteDancePosts(posts), authoritative: false, note };
 }
 
-async function fetchLive(pageSize: number): Promise<AdapterFetchResult> {
-  const csrfResponse = await fetch(`${ORIGIN}/api/v1/csrf/token`, {
+async function fetchLive(config: unknown): Promise<AdapterFetchResult> {
+  const pageSize = readPageSize(config);
+  const { maxPages } = readCrawlSettings(config);
+
+  const csrfResponse = await fetchResponse(`${ORIGIN}/api/v1/csrf/token`, {
     method: "POST",
     headers: {
       accept: "application/json",
@@ -73,8 +78,6 @@ async function fetchLive(pageSize: number): Promise<AdapterFetchResult> {
       "user-agent": "BoardlineBot/0.1 (public company career API; no login)",
     },
     body: JSON.stringify({ portal_entrance: 1 }),
-    signal: AbortSignal.timeout(20_000),
-    cache: "no-store",
   });
   if (!csrfResponse.ok) throw new Error(`字节跳动 CSRF HTTP ${csrfResponse.status}`);
   const csrf = (await csrfResponse.json()) as { data?: { token?: string } };
@@ -82,35 +85,42 @@ async function fetchLive(pageSize: number): Promise<AdapterFetchResult> {
   const cookie = csrfResponse.headers.get("set-cookie")?.split(";")[0];
   if (!token || !cookie) throw new Error("字节跳动公开接口没有返回 CSRF token");
 
-  const payload = (await fetchJson(`${ORIGIN}/api/v1/search/job/posts`, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      origin: ORIGIN,
-      referer: `${ORIGIN}/experienced/position`,
-      "x-csrf-token": token,
-      cookie,
-    },
-    body: JSON.stringify({
-      keyword: FRONTEND_QUERY,
-      limit: pageSize,
-      offset: 0,
-      job_category_id_list: [],
-      tag_id_list: [],
-      location_code_list: [],
-      subject_id_list: [],
-      recruitment_id_list: [],
-      portal_type: 2,
-      portal_entrance: 1,
-    }),
-  })) as { data?: { job_post_list?: unknown } };
+  const scan = await collectPages({
+    maxPages,
+    identify: (item) => (item as { id: unknown } | null)?.id,
+    fetchPage: async (_pageNumber, offset) => {
+      const payload = (await fetchJson(`${ORIGIN}/api/v1/search/job/posts`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          origin: ORIGIN,
+          referer: `${ORIGIN}/experienced/position`,
+          "x-csrf-token": token,
+          cookie,
+        },
+        body: JSON.stringify({
+          keyword: FRONTEND_QUERY,
+          limit: pageSize,
+          offset,
+          job_category_id_list: [],
+          tag_id_list: [],
+          location_code_list: [],
+          subject_id_list: [],
+          recruitment_id_list: [],
+          portal_type: 2,
+          portal_entrance: 1,
+        }),
+      })) as { data?: { job_post_list?: unknown } };
 
-  const posts = payload.data?.job_post_list;
-  if (!Array.isArray(posts)) throw new Error("字节跳动职位列表缺少 job_post_list");
+      const posts = payload.data?.job_post_list;
+      if (!Array.isArray(posts)) throw new Error("字节跳动职位列表缺少 job_post_list");
+      return { items: posts };
+    },
+  });
   return {
-    jobs: normalizeByteDancePosts(posts),
-    authoritative: true,
-    note: `字节跳动招聘公开接口，前端社招最近 ${posts.length} 条`,
+    jobs: normalizeByteDancePosts(scan.items),
+    authoritative: scan.complete,
+    note: scan.note,
   };
 }
 
@@ -118,15 +128,6 @@ export const bytedanceApiAdapter: CrawlerAdapter = {
   sourceType: SOURCE_TYPE,
   async fetchJobs(context: AdapterContext): Promise<AdapterFetchResult> {
     if (context.offline) return loadFixture(`离线样例 ${FIXTURE}`);
-    try {
-      return await fetchLive(readPageSize(context.config));
-    } catch (error) {
-      const reason = error instanceof Error ? error.message : "未知错误";
-      try {
-        return await loadFixture(`接口失败，改用离线样例（${reason}）`);
-      } catch {
-        throw error;
-      }
-    }
+    return fetchLive(context.config);
   },
 };

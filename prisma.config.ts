@@ -1,15 +1,15 @@
 import "dotenv/config";
 import { defineConfig } from "prisma/config";
 
-// Zero-config local default. Override with a Neon/Postgres URL in the environment.
 const databaseUrl = process.env.DATABASE_URL ?? "file:./dev.db";
+const postgres = /^postgres(ql)?:\/\//.test(databaseUrl);
 
 export default defineConfig({
-  schema: "prisma/schema.prisma",
+  schema: postgres ? "prisma/postgres/schema.prisma" : "prisma/schema.prisma",
   migrations: {
-    path: "prisma/migrations",
+    path: postgres ? "prisma/postgres/migrations" : "prisma/migrations",
   },
   datasource: {
-    url: databaseUrl,
+    url: postgres ? process.env.DATABASE_DIRECT_URL || databaseUrl : databaseUrl,
   },
 });

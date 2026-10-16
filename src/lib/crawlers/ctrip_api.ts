@@ -1,3 +1,5 @@
+import { collectPages } from "@/lib/crawlers/pagination";
+import { readCrawlSettings } from "@/lib/crawlers/settings";
 import { fetchJson, readJsonFixture } from "@/lib/crawlers/public-json";
 import { buildChineseJob, FRONTEND_QUERY, mapFrontendJobs, parseChineseDate, readPageSize } from "@/lib/crawlers/text";
 import type { AdapterContext, AdapterFetchResult, CrawlerAdapter, NormalizedJob } from "@/lib/crawlers/types";
@@ -69,34 +71,44 @@ async function loadFixture(note: string): Promise<AdapterFetchResult> {
   return { jobs: normalizeCtripJobs(list), authoritative: false, note };
 }
 
-async function fetchLive(pageSize: number): Promise<AdapterFetchResult> {
-  const payload = (await fetchJson(`${ORIGIN}/api/hrrecruit/getJobAd`, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      origin: ORIGIN,
-      referer: `${ORIGIN}/experienced/jobList`,
-    },
-    body: JSON.stringify({
-      condition: {
-        keyword: FRONTEND_QUERY,
-        city: [],
-        country: [],
-        jobCategory: [],
-        fromId: [],
-      },
-      pager: { size: pageSize, index: 1 },
-    }),
-  })) as { retCode?: string; retValue?: { recruitJobAdList?: unknown } };
+async function fetchLive(config: unknown): Promise<AdapterFetchResult> {
+  const pageSize = readPageSize(config);
+  const { maxPages } = readCrawlSettings(config);
 
-  const list = payload.retValue?.recruitJobAdList;
-  if (payload.retCode !== "201" || !Array.isArray(list)) {
-    throw new Error("携程职位列表缺少 recruitJobAdList");
-  }
+  const scan = await collectPages({
+    maxPages,
+    identify: (item) => (item as { jobId: unknown } | null)?.jobId,
+    fetchPage: async (pageNumber) => {
+      const payload = (await fetchJson(`${ORIGIN}/api/hrrecruit/getJobAd`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          origin: ORIGIN,
+          referer: `${ORIGIN}/experienced/jobList`,
+        },
+        body: JSON.stringify({
+          condition: {
+            keyword: FRONTEND_QUERY,
+            city: [],
+            country: [],
+            jobCategory: [],
+            fromId: [],
+          },
+          pager: { size: pageSize, index: pageNumber },
+        }),
+      })) as { retCode?: string; retValue?: { recruitJobAdList?: unknown } };
+
+      const list = payload.retValue?.recruitJobAdList;
+      if (payload.retCode !== "201" || !Array.isArray(list)) {
+        throw new Error("携程职位列表缺少 recruitJobAdList");
+      }
+      return { items: list };
+    },
+  });
   return {
-    jobs: normalizeCtripJobs(list),
-    authoritative: true,
-    note: `携程招聘公开接口，前端社招最近 ${list.length} 条`,
+    jobs: normalizeCtripJobs(scan.items),
+    authoritative: scan.complete,
+    note: scan.note,
   };
 }
 
@@ -104,15 +116,6 @@ export const ctripApiAdapter: CrawlerAdapter = {
   sourceType: SOURCE_TYPE,
   async fetchJobs(context: AdapterContext): Promise<AdapterFetchResult> {
     if (context.offline) return loadFixture(`离线样例 ${FIXTURE}`);
-    try {
-      return await fetchLive(readPageSize(context.config));
-    } catch (error) {
-      const reason = error instanceof Error ? error.message : "未知错误";
-      try {
-        return await loadFixture(`接口失败，改用离线样例（${reason}）`);
-      } catch {
-        throw error;
-      }
-    }
+    return fetchLive(context.config);
   },
 };

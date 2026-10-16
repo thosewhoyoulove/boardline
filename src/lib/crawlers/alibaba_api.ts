@@ -1,4 +1,6 @@
-import { fetchJson, PUBLIC_USER_AGENT, readJsonFixture } from "@/lib/crawlers/public-json";
+import { collectPages } from "@/lib/crawlers/pagination";
+import { readCrawlSettings } from "@/lib/crawlers/settings";
+import { fetchJson, fetchResponse, PUBLIC_USER_AGENT, readJsonFixture } from "@/lib/crawlers/public-json";
 import { buildChineseJob, FRONTEND_QUERY, mapFrontendJobs, parseEpoch, readPageSize } from "@/lib/crawlers/text";
 import type { AdapterContext, AdapterFetchResult, CrawlerAdapter, NormalizedJob } from "@/lib/crawlers/types";
 
@@ -63,48 +65,57 @@ async function loadFixture(note: string): Promise<AdapterFetchResult> {
   return { jobs: normalizeAlibabaPosts(datas), authoritative: false, note };
 }
 
-async function fetchLive(pageSize: number): Promise<AdapterFetchResult> {
-  const page = await fetch(`${ORIGIN}/off-campus/position-list?lang=zh`, {
+async function fetchLive(config: unknown): Promise<AdapterFetchResult> {
+  const pageSize = readPageSize(config);
+  const { maxPages } = readCrawlSettings(config);
+
+  const page = await fetchResponse(`${ORIGIN}/off-campus/position-list?lang=zh`, {
     headers: {
       accept: "text/html",
       "user-agent": PUBLIC_USER_AGENT,
       referer: ORIGIN,
     },
-    signal: AbortSignal.timeout(20_000),
-    cache: "no-store",
   });
   if (!page.ok) throw new Error(`阿里巴巴招聘页 HTTP ${page.status}`);
   const cookies = page.headers.getSetCookie?.() ?? [];
   const cookie = cookies.map((entry) => entry.split(";")[0]).join("; ");
   const rawToken = cookies.find((entry) => entry.startsWith("XSRF-TOKEN="));
   const token = rawToken ? decodeURIComponent(rawToken.split(";")[0].slice("XSRF-TOKEN=".length)) : "";
+  await page.body?.cancel();
   if (!cookie || !token) throw new Error("阿里巴巴公开页面没有返回 XSRF token");
 
-  const payload = (await fetchJson(`${ORIGIN}/position/search`, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      origin: ORIGIN,
-      referer: `${ORIGIN}/off-campus/position-list?lang=zh`,
-      cookie,
-      "x-xsrf-token": token,
-    },
-    body: JSON.stringify({
-      channel: "group_official_site",
-      language: "zh",
-      pageIndex: 1,
-      pageSize,
-      key: FRONTEND_QUERY,
-      categoryType: "social",
-    }),
-  })) as { content?: { datas?: unknown } };
+  const scan = await collectPages({
+    maxPages,
+    identify: (item) => (item as { id: unknown } | null)?.id,
+    fetchPage: async (pageNumber) => {
+      const payload = (await fetchJson(`${ORIGIN}/position/search`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          origin: ORIGIN,
+          referer: `${ORIGIN}/off-campus/position-list?lang=zh`,
+          cookie,
+          "x-xsrf-token": token,
+        },
+        body: JSON.stringify({
+          channel: "group_official_site",
+          language: "zh",
+          pageIndex: pageNumber,
+          pageSize,
+          key: FRONTEND_QUERY,
+          categoryType: "social",
+        }),
+      })) as { content?: { datas?: unknown } };
 
-  const datas = payload.content?.datas;
-  if (!Array.isArray(datas)) throw new Error("阿里巴巴职位列表缺少 content.datas");
+      const datas = payload.content?.datas;
+      if (!Array.isArray(datas)) throw new Error("阿里巴巴职位列表缺少 content.datas");
+      return { items: datas };
+    },
+  });
   return {
-    jobs: normalizeAlibabaPosts(datas),
-    authoritative: true,
-    note: `阿里巴巴招聘公开接口，前端社招最近 ${datas.length} 条`,
+    jobs: normalizeAlibabaPosts(scan.items),
+    authoritative: scan.complete,
+    note: scan.note,
   };
 }
 
@@ -112,15 +123,6 @@ export const alibabaApiAdapter: CrawlerAdapter = {
   sourceType: SOURCE_TYPE,
   async fetchJobs(context: AdapterContext): Promise<AdapterFetchResult> {
     if (context.offline) return loadFixture(`离线样例 ${FIXTURE}`);
-    try {
-      return await fetchLive(readPageSize(context.config));
-    } catch (error) {
-      const reason = error instanceof Error ? error.message : "未知错误";
-      try {
-        return await loadFixture(`接口失败，改用离线样例（${reason}）`);
-      } catch {
-        throw error;
-      }
-    }
+    return fetchLive(context.config);
   },
 };
