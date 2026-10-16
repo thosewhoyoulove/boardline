@@ -1,5 +1,7 @@
 # 职线 Boardline
 
+在线访问：[打开职线 Boardline](https://boardline.vercel.app/)
+
 独立的公开职位聚合 MVP。它从招聘方自己公开的职位接口拉取岗位，规范化后写入数据库，列表和详情页只提供官方申请链接。
 
 这不是 JDWatch，也不调用任何需要登录的私有接口。
