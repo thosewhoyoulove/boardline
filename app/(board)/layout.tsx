@@ -1,5 +1,7 @@
 import { JobFilters } from "@/components/job-filters";
 import { getPrisma } from "@/lib/db/client";
+import Link from "next/link";
+import { CompanyShortcut } from "@/components/company-shortcut";
 
 async function loadFilterCompanies() {
   "use cache";
@@ -13,16 +15,28 @@ async function loadFilterCompanies() {
 export default async function BoardLayout({ children }: { children: React.ReactNode }) {
   const companies = await loadFilterCompanies();
   return (
-    <div className="mx-auto w-full max-w-6xl px-4 pt-8 pb-16 sm:px-6 sm:pt-10">
-      <header className="mb-8 max-w-2xl">
-        <p className="text-xs tracking-[0.18em] text-primary uppercase">公开职位板</p>
-        <h1 className="mt-2 font-display text-4xl leading-tight tracking-tight sm:text-5xl">正在公开招聘的前端职位</h1>
-        <p className="mt-3 text-base leading-7 text-muted-foreground">
-          只收录中国大陆公司的社会招聘，岗位限于前端和 AI 前端，职位要求为中文。申请按钮只指向官方页面。
-        </p>
+    <div className="board-shell">
+      <header className="board-intro">
+        <div>
+          <h1>下一份前端工作，<br />从这里开始。</h1>
+          <p className="intro-description">汇集国内公司公开的前端与 AI 前端社招。<br className="hidden sm:block" />找到合适的职位，直接前往官方申请。</p>
+          <div className="intro-note"><span aria-hidden="true" />公开来源，官方直达</div>
+        </div>
+        <div className="employer-shortcuts">
+          <div className="employer-heading"><h2>从感兴趣的公司开始</h2><Link href="/companies">查看公司目录</Link></div>
+          <div className="employer-grid">
+            {companies.map((company) => (
+              <CompanyShortcut key={company.slug} slug={company.slug} name={company.displayName} />
+            ))}
+          </div>
+        </div>
       </header>
-      <JobFilters companies={companies} />
-      <div className="mt-6">{children}</div>
+      <div className="board-workspace">
+        <aside className="filter-rail" aria-label="筛选职位"><JobFilters companies={companies} />
+          <p className="filter-footnote">每 6 小时检查官方招聘来源。<br />职位信息及申请以招聘方官网为准。</p>
+        </aside>
+        <div className="min-w-0">{children}</div>
+      </div>
     </div>
   );
 }

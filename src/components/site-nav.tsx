@@ -22,10 +22,10 @@ export function SiteNav() {
             href={link.href}
             aria-current={active ? "page" : undefined}
             className={cn(
-              "rounded-full px-3 py-1.5 text-sm transition-colors",
+              "site-nav-link",
               active
-                ? "bg-primary text-primary-foreground"
-                : "text-muted-foreground hover:bg-muted hover:text-foreground",
+                ? "is-active"
+                : "text-muted-foreground",
             )}
           >
             {link.label}

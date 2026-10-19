@@ -62,10 +62,10 @@ export function JobBoard({ jobs, companies, lastUpdatedAt }: {
         <JobListSkeleton />
       </div>
       <div data-job-results>
-        <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1.5">
-          <h2 id="job-count" className="scroll-mt-6 text-sm text-muted-foreground" aria-live="polite">
-            {companyName ? `${companyName} · ` : ""}
-            <span className="font-medium tabular-nums text-foreground">{matched.length}</span> 个在招职位
+        <div className="results-toolbar">
+          <h2 id="job-count" className="results-count scroll-mt-6" aria-live="polite">
+            {companyName ? <span className="results-company-name">{companyName}</span> : null}
+            <span className="result-total">{matched.length}</span><span>个在招职位</span>
           </h2>
           {lastUpdatedAt ? (
             <p className="text-xs text-muted-foreground" title="最近一次抓取并写入职位的时间（北京时间）">
@@ -87,7 +87,7 @@ export function JobBoard({ jobs, companies, lastUpdatedAt }: {
           </div>
         ) : (
           <section aria-labelledby="job-count">
-            <ol className="divide-y overflow-hidden rounded-2xl border bg-card">
+            <ol className="job-results-list">
               {visible.map((job) => (
                 <JobRow key={job.id} job={job} now={now} />
               ))}
@@ -114,19 +114,16 @@ function JobRow({ job, now }: { job: JobListItem; now: number | null }) {
   const when = job.publishTime ?? job.firstSeenAt;
   return (
     <li>
-      <Link href={`/jobs/${job.id}`} className="block px-4 py-4 transition-colors hover:bg-muted/70 sm:px-5">
-        <div className="flex items-start justify-between gap-3">
-          <p className="text-sm font-medium text-primary">{job.companyName}</p>
-          <time dateTime={when} className="shrink-0 text-xs text-muted-foreground">
-            {formatDate(when)}
-          </time>
+      <Link href={`/jobs/${job.id}`} className="job-result-link">
+        <span className="company-monogram job-company-icon" data-company={job.companySlug} aria-hidden="true">{job.companyName.slice(0, 1)}</span>
+        <div className="job-result-content">
+          <h3>{job.title}</h3>
+          <div className="job-result-meta"><span className="job-employer-name">{job.companyName}</span><span>{formatLocations(job.locations)}</span></div>
+          <div className="job-result-tags">{job.category ? <Badge variant="secondary">{job.category}</Badge> : null}
+            {now !== null && isFresh(job.firstSeenAt, now) ? <Badge variant="outline" className="fresh-badge">近 7 天收录</Badge> : null}
+          </div>
         </div>
-        <h3 className="mt-1 font-display text-xl leading-snug tracking-tight sm:text-[1.35rem]">{job.title}</h3>
-        <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-          <span>{formatLocations(job.locations)}</span>
-          {job.category ? <Badge variant="secondary">{job.category}</Badge> : null}
-          {now !== null && isFresh(job.firstSeenAt, now) ? <Badge variant="outline">新收录</Badge> : null}
-        </div>
+        <div className="job-result-side"><time dateTime={when}>{formatDate(when)}</time><span>查看职位</span></div>
       </Link>
     </li>
   );

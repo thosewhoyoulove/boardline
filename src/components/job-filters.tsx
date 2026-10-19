@@ -66,9 +66,9 @@ export function JobFilters({ companies }: { companies: FilterCompany[] }) {
   const hasFilters = Boolean(q.trim() || location.trim() || company);
 
   return (
-    <div className="rounded-2xl border bg-card p-4">
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <p className="text-xs text-muted-foreground">改一个条件，列表会跟着更新</p>
+    <div className="filter-panel">
+      <div className="mb-3 flex min-h-5 items-center justify-between gap-3">
+        <h2 className="text-base font-semibold text-foreground">筛选职位</h2>
         {hasFilters ? (
           <button
             type="button"
@@ -84,7 +84,7 @@ export function JobFilters({ companies }: { companies: FilterCompany[] }) {
           </button>
         ) : null}
       </div>
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="filter-fields">
         <label className="grid gap-1.5 text-xs font-medium text-muted-foreground">
           关键词
           <Input
@@ -94,7 +94,7 @@ export function JobFilters({ companies }: { companies: FilterCompany[] }) {
               setQ(value);
               schedule({ q: value, company, location });
             }}
-            placeholder="标题、团队、描述"
+            placeholder="搜索职位、技能或团队"
             autoComplete="off"
           />
         </label>
@@ -108,7 +108,7 @@ export function JobFilters({ companies }: { companies: FilterCompany[] }) {
               setLocation(value);
               schedule({ q, company, location: value });
             }}
-            placeholder="城市"
+            placeholder="例如：北京、上海"
             autoComplete="off"
           />
         </label>
