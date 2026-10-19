@@ -9,7 +9,6 @@ const nextConfig: NextConfig = {
     "@prisma/adapter-better-sqlite3",
     "@prisma/adapter-pg",
     "pg",
-    "sanitize-html",
   ],
   turbopack: {
     rules: {
