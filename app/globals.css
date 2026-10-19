@@ -205,6 +205,12 @@
   display: none;
 }
 
+[data-job-results] {
+  /* Keep short/empty results from clamping the scroll position on company changes. */
+  min-height: 100svh;
+  overflow-anchor: none;
+}
+
 .site-masthead { background: #fff; border-bottom: 1px solid var(--border); }
 .masthead-inner { max-width: 1220px; min-height: 80px; margin: auto; padding: 0 32px; display: flex; align-items: center; justify-content: space-between; gap: 24px; }
 .brand-link { display: flex; align-items: center; gap: 12px; }
