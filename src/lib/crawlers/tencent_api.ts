@@ -1,4 +1,4 @@
-import { collectPages } from "@/lib/crawlers/pagination";
+import { collectPages, pageTotal } from "@/lib/crawlers/pagination";
 import { readCrawlSettings } from "@/lib/crawlers/settings";
 import { fetchJson, readJsonFixture } from "@/lib/crawlers/public-json";
 import { buildChineseJob, FRONTEND_QUERY, isFrontendRole, mapFrontendJobs, parseChineseDate, readPageSize } from "@/lib/crawlers/text";
@@ -61,6 +61,36 @@ export function normalizeTencentPosts(values: unknown[]): NormalizedJob[] {
   });
 }
 
+type TencentListPayload = {
+  Code?: unknown;
+  Data?: { Count?: unknown; Posts?: unknown } | null;
+};
+
+/**
+ * Tencent's list API keeps `Data.Posts` on in-range pages and switches to
+ * `{ Count: 0, Posts: null }` once `pageIndex` passes the last page.
+ * That terminal page is an empty page, not a crashed payload.
+ */
+export function readTencentListPage(payload: unknown, pageNumber: number): { items: unknown[]; total?: number } {
+  if (!payload || typeof payload !== "object") throw new Error("腾讯职位列表缺少 Data.Posts");
+  const body = payload as TencentListPayload;
+  if (body.Code !== undefined && body.Code !== 200) {
+    throw new Error(`腾讯职位列表返回异常（Code ${String(body.Code)}）`);
+  }
+  const data = body.Data;
+  if (!data || typeof data !== "object") throw new Error("腾讯职位列表缺少 Data.Posts");
+
+  const total = pageTotal(data.Count);
+  const posts = data.Posts;
+  if (posts == null) {
+    if (pageNumber > 1 && (total === undefined || total === 0)) return { items: [] };
+    if (total === 0) return { items: [], total: 0 };
+    throw new Error("腾讯职位列表缺少 Data.Posts");
+  }
+  if (!Array.isArray(posts)) throw new Error("腾讯职位列表缺少 Data.Posts");
+  return { items: posts, total };
+}
+
 async function loadFixture(note: string): Promise<AdapterFetchResult> {
   const payload = await readJsonFixture(FIXTURE);
   const posts = payload && typeof payload === "object" ? (payload as { posts?: unknown }).posts : null;
@@ -82,12 +112,10 @@ async function fetchLive(config: unknown): Promise<AdapterFetchResult> {
       listUrl.searchParams.set("area", "cn");
       listUrl.searchParams.set("keyword", FRONTEND_QUERY);
 
-      const list = (await fetchJson(listUrl.toString(), {
+      const list = await fetchJson(listUrl.toString(), {
         headers: { referer: "https://careers.tencent.com/search.html" },
-      })) as { Data?: { Posts?: unknown[] } };
-      const posts = list.Data?.Posts;
-      if (!Array.isArray(posts)) throw new Error("腾讯职位列表缺少 Data.Posts");
-      return { items: posts };
+      });
+      return readTencentListPage(list, pageNumber);
     },
   });
   const posts = scan.items;

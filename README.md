@@ -41,7 +41,7 @@ npm run scrape
 3. 用「前端」向公开接口检索，再只保留标题是前端或 AI 前端、且职位要求含中文的社会招聘。产品、运营、算法、后端、客户端、测试、校招和实习都会丢掉。按 `uniqueKey` upsert。
 4. 自动翻页（腾讯每页 20 条，其余 30 条），默认每家公司最多 20 页。仅在完整读到列表末尾、没有分页重复或详情失败，且至少收录一个岗位时，才将超过 48 小时没有再次见到的岗位标为 `isActive = false`。页数上限、异常空列表、后续页失败都不会导致旧岗位下线。
 
-在线抓取失败会报告错误，保留已有岗位，不会自动导入样例。后续页失败时保留本轮已取得的有效岗位，并将本轮标为部分扫描、退出码为 1。只有显式离线模式才导入 `fixtures/cn/*.sample.json`，样例**不会**把缺失职位下线：
+在线抓取失败会报告错误，保留已有岗位，不会自动导入样例。某个来源抛错，或某一页没有职位列表时，该来源记为失败或部分扫描并跳过，其他来源继续写入。只要至少有一个来源完成本轮，进程以 0 退出；全部来源都失败时退出码为 1。部分扫描不会下线旧岗位。只有显式离线模式才导入 `fixtures/cn/*.sample.json`，样例**不会**把缺失职位下线：
 
 ```bash
 npm run scrape -- --offline
@@ -138,7 +138,7 @@ SCRAPE_DEACTIVATE_AFTER_HOURS=48
 2. 将 `.github/workflows/scrape.yml` 发布到默认分支，启用 Actions。
 3. 首次部署前，在 Actions → Refresh production jobs → Run workflow 手动运行一次；确认抓取日志和网页数据，再启用生产部署。
 
-之后北京时间每天约 02:23、08:23、14:23、20:23 自动抓取（GitHub 调度可能延迟）。任务先部署数据库迁移，再运行抓取；GitHub 并发组和数据库租约避免重复任务。失败会让工作流显示失败，部分成功的数据仍保留。检查 Actions 日志和职位详情的「最近发现」判断更新是否正常，列表日期优先显示招聘方的发布日期。任务在 GitHub 执行，无需本地电脑常开，也不依赖 Vercel 抓取接口。
+之后北京时间每天约 02:23、08:23、14:23、20:23 自动抓取（GitHub 调度可能延迟）。任务先部署数据库迁移，再运行抓取；GitHub 并发组和数据库租约避免重复任务。单个来源失败会写在日志里并跳过，不再让整次刷新失败；全部来源都失败时工作流仍显示失败。已写入的数据会保留。检查 Actions 日志和职位详情的「最近发现」判断更新是否正常，列表日期优先显示招聘方的发布日期。任务在 GitHub 执行，无需本地电脑常开，也不依赖 Vercel 抓取接口。
 
 ### 伦理与使用边界
 
@@ -185,7 +185,7 @@ Open [http://localhost:3000](http://localhost:3000). The committed `.env` points
 
 `npm run scrape` seeds social-hire sources for Tencent, ByteDance, Alibaba, Meituan, JD, Xiaomi, DiDi, and Trip.com, and deactivates the earlier Linear, Notion, and Ashby demos. It searches each public API for frontend roles, then keeps only titles that are frontend or AI-frontend engineering with Chinese requirements. Sources paginate (20 roles per page for Tencent, 30 for the others), up to 20 pages by default. Only exhausted, nonempty, complete scans may deactivate missing roles, after a 48-hour grace period. Truncated, overlapping or failed scans preserve existing jobs. Same-origin requests are serialized with at least a one-second delay and an identifying User-Agent.
 
-Online failures are reported without substituting fixtures. Successful earlier pages are retained as a partial scan and the command exits with status 1. Explicit fixture imports are non-authoritative and never deactivate other rows:
+Online failures are reported without substituting fixtures. A source that throws, or a page without a job list, is logged and skipped; earlier pages from that source stay a partial scan and do not deactivate existing jobs. The command exits 0 when at least one source finishes, and exits 1 only when every source fails. Explicit fixture imports are non-authoritative and never deactivate other rows:
 
 ```bash
 npm run scrape -- --offline
@@ -217,7 +217,7 @@ Set the Vercel production `DATABASE_URL` (and optional `DATABASE_DIRECT_URL`). T
 npm run build:vercel
 ```
 
-It requires Postgres, generates the client, applies migrations, then builds. Configure matching GitHub Actions repository secrets and manually run **Refresh production jobs** before the first deployment. `.github/workflows/scrape.yml` then runs every six hours at minute 23 UTC (scheduling may be delayed), using a concurrency group and shared database lease. Failures appear in Actions; partial results are preserved. Pages revalidate cached database reads after 60 seconds with a 300-second expiration. Preview deployments should use a separate database.
+It requires Postgres, generates the client, applies migrations, then builds. Configure matching GitHub Actions repository secrets and manually run **Refresh production jobs** before the first deployment. `.github/workflows/scrape.yml` then runs every six hours at minute 23 UTC (scheduling may be delayed), using a concurrency group and shared database lease. A failed source is logged and skipped so the workflow can still succeed; the run fails only when every source fails. Partial results are preserved. Pages revalidate cached database reads after 60 seconds with a 300-second expiration. Preview deployments should use a separate database.
 
 ### Ethics
 

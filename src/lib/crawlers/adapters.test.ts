@@ -4,6 +4,7 @@ import test from "node:test";
 import { getAdapter } from "@/lib/crawlers/registry";
 import { withCrawlSettings } from "@/lib/crawlers/public-json";
 import { readCrawlSettings } from "@/lib/crawlers/settings";
+import { readTencentListPage } from "@/lib/crawlers/tencent_api";
 
 const definitions = [
   { name: "tencent", id: "PostId", list: "Query", fixture: (p: Record<string, unknown>) => p.posts, wrap: (items: unknown[]) => ({ Data: { Posts: items } }) },
@@ -48,6 +49,49 @@ for (const definition of definitions) {
 test("online failure never silently substitutes fixture jobs", async (t) => {
   t.mock.method(globalThis, "fetch", async () => new Response(null, { status: 403 }));
   await assert.rejects(getAdapter("meituan_api")!.fetchJobs({ config: {}, offline: false }), /403/);
+});
+
+test("Tencent null Posts is the end of the list, and Count stops before that page", async (t) => {
+  assert.deepEqual(readTencentListPage({ Code: 200, Data: { Count: 0, Posts: null } }, 3), { items: [] });
+  assert.deepEqual(readTencentListPage({ Code: 200, Data: { Count: 0, Posts: null } }, 1), { items: [], total: 0 });
+  assert.throws(() => readTencentListPage({ Code: 200, Data: { Count: 29, Posts: null } }, 1), /Data\.Posts/);
+
+  const payload = JSON.parse(readFileSync("fixtures/cn/tencent.sample.json", "utf8")) as { posts: Record<string, unknown>[] };
+  const template = payload.posts[0];
+  const rows = [1, 2].map((index) => ({ ...template, PostId: `${template.PostId}-${index}` }));
+  const requests: number[] = [];
+  t.mock.method(globalThis, "fetch", async (input: string | URL | Request) => {
+    const url = new URL(String(input));
+    if (url.pathname.endsWith("ByPostId")) return Response.json({ Data: rows.find((row) => row.PostId === url.searchParams.get("postId")) });
+    const index = Number(url.searchParams.get("pageIndex"));
+    requests.push(index);
+    if (index >= 3) return Response.json({ Code: 200, Data: { Count: 0, Posts: null } });
+    return Response.json({ Code: 200, Data: { Count: rows.length, Posts: [rows[index - 1]] } });
+  });
+  const result = await withCrawlSettings(readCrawlSettings({ requestDelayMs: 250, retries: 0 }), () =>
+    getAdapter("tencent_api")!.fetchJobs({ config: { pageSize: 1, maxPages: 5 }, offline: false }));
+  assert.deepEqual(requests, [1, 2]);
+  assert.equal(result.authoritative, true);
+  assert.equal(result.jobs.length, 2);
+  assert.doesNotMatch(result.note ?? "", /缺少 Data\.Posts/);
+});
+
+test("Tencent keeps earlier pages when a later page drops Posts before the declared total", async (t) => {
+  const payload = JSON.parse(readFileSync("fixtures/cn/tencent.sample.json", "utf8")) as { posts: Record<string, unknown>[] };
+  const row = { ...payload.posts[0], PostId: "tencent-page-1" };
+  t.mock.method(globalThis, "fetch", async (input: string | URL | Request) => {
+    const url = new URL(String(input));
+    if (url.pathname.endsWith("ByPostId")) return Response.json({ Data: row });
+    const index = Number(url.searchParams.get("pageIndex"));
+    if (index === 1) return Response.json({ Code: 200, Data: { Count: 5, Posts: [row] } });
+    return Response.json({ Code: 200, Data: { Count: 0, Posts: null } });
+  });
+  const result = await withCrawlSettings(readCrawlSettings({ requestDelayMs: 250, retries: 0 }), () =>
+    getAdapter("tencent_api")!.fetchJobs({ config: { pageSize: 1, maxPages: 5 }, offline: false }));
+  assert.equal(result.authoritative, false);
+  assert.equal(result.jobs.length, 1);
+  assert.match(result.note ?? "", /已到列表末尾/);
+  assert.doesNotMatch(result.note ?? "", /缺少 Data\.Posts/);
 });
 
 test("Meituan uses totalCount to stop before its null out-of-range page", async (t) => {
