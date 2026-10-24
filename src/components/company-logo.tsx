@@ -14,6 +14,9 @@ const logos: Record<string, string> = {
   ctrip: "/company-logos/ctrip.ico",
   netease: "/company-logos/netease.ico",
   bilibili: "/company-logos/bilibili.ico",
+  baidu: "/company-logos/baidu.ico",
+  huawei: "/company-logos/huawei.ico",
+  xiaohongshu: "/company-logos/xiaohongshu.ico",
 };
 
 export function CompanyLogo({ slug, name, className = "" }: { slug: string; name: string; className?: string }) {

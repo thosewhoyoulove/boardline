@@ -44,7 +44,7 @@ test("discovery registers verified jobs once and isolates failed employers", asy
   assert.equal(await prisma.company.count(), 1);
   assert.equal(await prisma.dataSource.count(), 1);
   assert.equal(await prisma.job.count(), 1);
-  assert.equal((await discoverEmployers()).results[0].status, "skipped");
+  assert.equal((await discoverEmployers()).results[0].status, "refreshed");
   assert.equal(await prisma.dataSource.count(), 1);
   assert.equal(await prisma.scrapeLease.count(), 0);
 });

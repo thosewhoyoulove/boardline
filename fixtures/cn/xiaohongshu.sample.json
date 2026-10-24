@@ -1,0 +1,28 @@
+{
+  "statusCode": 200,
+  "data": {
+    "total": 2,
+    "list": [
+      {
+        "positionId": 18140,
+        "positionName": "用户增长前端工程师",
+        "jobType": "前端开发",
+        "workplace": "上海市，北京市",
+        "publishTime": "2026-09-16",
+        "recruitStatus": "in_recruitment",
+        "duty": "负责增长活动页的开发与性能优化。",
+        "qualification": "熟悉 React。能根据中文需求独立交付页面。"
+      },
+      {
+        "positionId": 18141,
+        "positionName": "社区产品经理",
+        "jobType": "产品",
+        "workplace": "上海市",
+        "publishTime": "2026-09-01",
+        "recruitStatus": "in_recruitment",
+        "duty": "负责社区产品规划。",
+        "qualification": "能撰写中文需求文档。"
+      }
+    ]
+  }
+}

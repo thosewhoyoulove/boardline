@@ -50,7 +50,27 @@ export function sourceLabel(value: string): string {
   if (value === "didi_api") return "滴滴招聘公开接口";
   if (value === "jd_api") return "京东招聘公开接口";
   if (value === "ctrip_api") return "携程招聘公开接口";
+  if (value === "baidu_api") return "百度招聘公开接口";
+  if (value === "netease_api") return "网易招聘公开接口";
+  if (value === "xiaohongshu_api") return "小红书招聘公开接口";
+  if (value === "huawei_api") return "华为招聘公开接口";
+  if (value === "bilibili_api") return "哔哩哔哩招聘公开接口";
   return value;
+}
+
+export function readCompanySlugs(values: Array<string | null | undefined>): string[] {
+  const seen = new Set<string>();
+  const slugs: string[] = [];
+  for (const value of values) {
+    for (const part of (value ?? "").split(",")) {
+      const slug = readCompanySlug(part);
+      if (!slug || seen.has(slug)) continue;
+      seen.add(slug);
+      slugs.push(slug);
+      if (slugs.length >= 40) return slugs;
+    }
+  }
+  return slugs;
 }
 
 export function readQueryValue(value: string | string[] | undefined): string {
@@ -71,13 +91,14 @@ export function readPage(value: string | string[] | undefined): number {
 
 export function boardHref(input: {
   q?: string;
-  company?: string;
+  companies?: string[];
   location?: string;
   page?: number;
 }): string {
   const params = new URLSearchParams();
+  const companies = readCompanySlugs(input.companies ?? []);
   if (input.q) params.set("q", input.q);
-  if (input.company) params.set("company", input.company);
+  if (companies.length > 0) params.set("company", companies.join(","));
   if (input.location) params.set("location", input.location);
   if (input.page && input.page > 1) params.set("page", String(input.page));
   const query = params.toString();

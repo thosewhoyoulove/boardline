@@ -21,8 +21,9 @@ export async function discoverEmployers({dryRun = false} = {}) {
     for (const candidate of employerCatalog) {
       try {
         const existing = await prisma.company.findUnique({where: {slug: candidate.slug}, include: {sources: true}});
-        if (existing && (!existing.active || existing.sources.some(source => source.sourceType === candidate.sourceType))) {
-          results.push({company: candidate.displayName, status: "skipped", jobs: 0, note: "已接入，交由常规抓取更新；手动停用的公司保持停用"});
+        const existingSource = existing?.sources.find(source => source.sourceType === candidate.sourceType);
+        if (existing && (!existing.active || existingSource?.isActive === false)) {
+          results.push({company: candidate.displayName, status: "skipped", jobs: 0, note: "手动停用的公司或来源保持停用"});
           continue;
         }
         const adapter = getAdapter(candidate.sourceType);
@@ -45,16 +46,16 @@ export async function discoverEmployers({dryRun = false} = {}) {
           // Atomic registration: never expose an empty company if importing jobs fails.
           await prisma.$transaction(async tx => {
             const company = existing ?? await tx.company.create({data: {slug: candidate.slug, displayName: candidate.displayName, referralUrl: candidate.careerUrl, active: true}});
-            const source = await tx.dataSource.create({data: {companyId: company.id, sourceType: candidate.sourceType, recruitmentType: "social", config: {pageSize: 20}, isActive: true}});
+            const source = existingSource ?? await tx.dataSource.create({data: {companyId: company.id, sourceType: candidate.sourceType, recruitmentType: "social", config: {pageSize: 20}, isActive: true}});
             const now = new Date();
             for (const job of fetched.jobs) {
               const {externalId: _externalId, ...data} = job;
               void _externalId;
-              await tx.job.upsert({where: {uniqueKey: job.uniqueKey}, create: {...data, companyId: company.id, sourceId: source.id, firstSeenAt: now, lastSeenAt: now, isActive: true}, update: {lastSeenAt: now, isActive: true}});
+              await tx.job.upsert({where: {uniqueKey: job.uniqueKey}, create: {...data, companyId: company.id, sourceId: source.id, firstSeenAt: now, lastSeenAt: now, isActive: true}, update: {...data, lastSeenAt: now, isActive: true}});
             }
           }, {timeout: 60_000});
         }
-        results.push({company: candidate.displayName, status: dryRun ? "ready" : "added", jobs: fetched.jobs.length});
+        results.push({company: candidate.displayName, status: dryRun ? "ready" : existingSource ? "refreshed" : "added", jobs: fetched.jobs.length});
       } catch (error) {
         results.push({company: candidate.displayName, status: "failed", jobs: 0, note: error instanceof Error ? error.message : String(error)});
       }

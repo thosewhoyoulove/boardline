@@ -1,0 +1,36 @@
+{
+  "code": 200,
+  "data": {
+    "total": 3,
+    "list": [
+      {
+        "id": 88001,
+        "name": "资深前端开发工程师",
+        "workType": "0",
+        "firstPostTypeName": "技术",
+        "workPlaceNameList": ["杭州市", "上海市"],
+        "updateTime": "2026-10-18 09:30:00",
+        "description": "负责互动产品的前端架构。",
+        "requirement": "3 年以上前端经验。能用中文写出可评审的技术方案。"
+      },
+      {
+        "id": 88002,
+        "name": "前端开发工程师",
+        "workType": "1",
+        "firstPostTypeName": "技术",
+        "workPlaceNameList": ["广州市"],
+        "description": "实习前端开发。",
+        "requirement": "在校学生，能阅读中文需求。"
+      },
+      {
+        "id": 88003,
+        "name": "产品经理",
+        "workType": "0",
+        "firstPostTypeName": "产品",
+        "workPlaceNameList": ["杭州市"],
+        "description": "负责产品规划。",
+        "requirement": "能撰写中文需求文档。"
+      }
+    ]
+  }
+}

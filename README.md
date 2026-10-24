@@ -36,12 +36,12 @@ npm run scrape
 
 脚本会：
 
-1. 写入腾讯、字节跳动、阿里巴巴、美团、京东、小米、滴滴、携程的社会招聘数据源。早期的 Linear、Notion、Ashby 示例会停用，不再抓取。
+1. 写入腾讯、字节跳动、阿里巴巴、美团、京东、小米、滴滴、携程、百度、网易、小红书、华为、哔哩哔哩的社会招聘数据源。早期的 Linear、Notion、Ashby 示例会停用，不再抓取。
 2. 按数据源串行调用适配器。公司之间间隔 800ms；同一网站的列表、详情和 CSRF 预请求统一排队，默认至少间隔 1 秒，并增加 0–250ms 抖动，带上可识别的 User-Agent。
 3. 用「前端」向公开接口检索，再只保留标题是前端或 AI 前端、且职位要求含中文的社会招聘。产品、运营、算法、后端、客户端、测试、校招和实习都会丢掉。按 `uniqueKey` upsert。
 4. 自动翻页（腾讯每页 20 条，其余 30 条），默认每家公司最多 20 页。仅在完整读到列表末尾、没有分页重复或详情失败，且至少收录一个岗位时，才将超过 48 小时没有再次见到的岗位标为 `isActive = false`。页数上限、异常空列表、后续页失败都不会导致旧岗位下线。
 
-在线抓取失败会报告错误，保留已有岗位，不会自动导入样例。后续页失败时保留本轮已取得的有效岗位，并将本轮标为部分扫描、退出码为 1。只有显式离线模式才导入 `fixtures/cn/*.sample.json`，样例**不会**把缺失职位下线：
+在线抓取失败会报告错误，保留已有岗位，不会自动导入样例。某个来源抛错，或某一页没有职位列表时，该来源记为失败或部分扫描并跳过，其他来源继续写入。只要至少有一个来源完成本轮，进程以 0 退出；全部来源都失败时退出码为 1。部分扫描不会下线旧岗位。只有显式离线模式才导入 `fixtures/cn/*.sample.json`，样例**不会**把缺失职位下线：
 
 ```bash
 npm run scrape -- --offline
@@ -108,8 +108,20 @@ SCRAPE_DEACTIVATE_AFTER_HOURS=48
 - `xiaomi_api`：飞书招聘公开接口，先要 CSRF，再搜索社招。申请页是官网职位详情。
 - `didi_api`：`GET https://talent.didiglobal.com/recruit-portal-service/api/job/front/list`。申请页是官网职位详情。
 - `ctrip_api`：`POST https://job.ctrip.com/api/hrrecruit/getJobAd`。校园招聘标题会被丢掉。申请页是官网职位详情。
+- `baidu_api`：`POST https://talent.baidu.com/httservice/getPostListNew`（`application/x-www-form-urlencoded`，`recruitType=SOCIAL`）。列表已带中文职位要求。申请页是 `https://talent.baidu.com/jobs/detail/SOCIAL/{postId}`。
+- `netease_api`：`POST https://hr.163.com/api/hr163/position/queryPage`，`workType=0` 为社会招聘。实习条目会被丢掉。申请页是 `https://hr.163.com/job-detail.html?id=`。关键词会命中正文里提到前端的其他职位；职位名仍要过前端过滤。2026-10-24 的社招结果里，职位名含「前端」的只有被排除的「偏前端」。
+- `xiaohongshu_api`：`POST https://job.xiaohongshu.com/websiterecruit/position/pageQueryPosition`，`recruitType=social`。申请页是官网社招职位页。
+- `huawei_api`：`POST https://apigw-dgg-b0.huawei.com/api/apig/channelhw/recruitmentPosition/pub/getJobPage`，`jobType=SR`。这是招聘官网使用的公开网关，请求带上网关公开的 `X-HW-ID`，不是账号密钥。接口不能按关键词检索，所以会翻完社招列表再在本地留下前端职位，并丢掉工作地在境外、港澳台的岗位。空的 `result`（不是空数组）视为该来源失败，不会把旧岗位下线。2026-10-24 的 560 条社招职位名里没有「前端」，因此当轮收录为 0；之后出现的前端职位仍会被这次适配器收录。申请页是 `https://career.huawei.com/cn/social-recruitment-job-list?jobId=`。
+- `bilibili_api`：先向 `https://jobs.bilibili.com/api/auth/v1/csrf/token` 要公开 CSRF，再 `POST /api/srs/position/positionList`（社招全职，`X-AppKey` 为招聘站公开的应用标识）。申请页是官网职位详情。
 
 `ashby_api` 仍保留，请求 `GET https://api.ashbyhq.com/posting-api/job-board/{boardSlug}`。新增来源时实现 `CrawlerAdapter`，并在 `registry.ts` 注册 `sourceType`。
+
+以下目标看过公开入口，但没有接进抓取，避免脆弱来源拖垮整轮：
+
+- 快手社招列表要客户端 HMAC 签名，未签名请求不可用。
+- 飞书招聘 SaaS（`*.jobs.feishu.cn`）要随前端包变化的请求签名。字节跳动和小米已经覆盖同一类、但不需要这层签名的门户。
+- Moka 官网列表（`/api/outer/ats-apply/website/jobs/v2`）返回 AES 密文，不属于当前明文 JSON 适配器。
+- Greenhouse、Lever 的公开 JSON 本身稳定。抽查 Binance、Airbnb、Spotify、Palantir 后，中国相关职位没有中文前端社招描述，因此没有写入公司。
 
 `recruitmentType` 取 `social`（社会招聘）或 `campus`（校园招聘）。当前示例都是社会招聘，只保留前端和 AI 前端，并且会丢掉没有中文职位要求的条目。
 
@@ -138,7 +150,7 @@ SCRAPE_DEACTIVATE_AFTER_HOURS=48
 2. 将 `.github/workflows/scrape.yml` 发布到默认分支，启用 Actions。
 3. 首次部署前，在 Actions → Refresh production jobs → Run workflow 手动运行一次；确认抓取日志和网页数据，再启用生产部署。
 
-之后北京时间每天约 02:23、08:23、14:23、20:23 自动抓取（GitHub 调度可能延迟）。任务先部署数据库迁移，再运行抓取；GitHub 并发组和数据库租约避免重复任务。失败会让工作流显示失败，部分成功的数据仍保留。检查 Actions 日志和职位详情的「最近发现」判断更新是否正常，列表日期优先显示招聘方的发布日期。任务在 GitHub 执行，无需本地电脑常开，也不依赖 Vercel 抓取接口。
+之后北京时间每天约 02:23、08:23、14:23、20:23 自动抓取（GitHub 调度可能延迟）。任务先部署数据库迁移，再运行抓取；GitHub 并发组和数据库租约避免重复任务。单个来源失败会写在日志里并跳过，不再让整次刷新失败；全部来源都失败时工作流仍显示失败。已写入的数据会保留。检查 Actions 日志和职位详情的「最近发现」判断更新是否正常，列表日期优先显示招聘方的发布日期。任务在 GitHub 执行，无需本地电脑常开，也不依赖 Vercel 抓取接口。
 
 ### 伦理与使用边界
 
@@ -183,15 +195,17 @@ Open [http://localhost:3000](http://localhost:3000). The committed `.env` points
 
 ### Scrape
 
-`npm run scrape` seeds social-hire sources for Tencent, ByteDance, Alibaba, Meituan, JD, Xiaomi, DiDi, and Trip.com, and deactivates the earlier Linear, Notion, and Ashby demos. It searches each public API for frontend roles, then keeps only titles that are frontend or AI-frontend engineering with Chinese requirements. Sources paginate (20 roles per page for Tencent, 30 for the others), up to 20 pages by default. Only exhausted, nonempty, complete scans may deactivate missing roles, after a 48-hour grace period. Truncated, overlapping or failed scans preserve existing jobs. Same-origin requests are serialized with at least a one-second delay and an identifying User-Agent.
+`npm run scrape` seeds social-hire sources for Tencent, ByteDance, Alibaba, Meituan, JD, Xiaomi, DiDi, Trip.com, Baidu, NetEase, Xiaohongshu, Huawei, and Bilibili, and deactivates the earlier Linear, Notion, and Ashby demos. It searches each public API for frontend roles, then keeps only titles that are frontend or AI-frontend engineering with Chinese requirements. Sources paginate (20 roles per page for Tencent, 30 for the others), up to 20 pages by default. Only exhausted, nonempty, complete scans may deactivate missing roles, after a 48-hour grace period. Truncated, overlapping or failed scans preserve existing jobs. Same-origin requests are serialized with at least a one-second delay and an identifying User-Agent.
 
-Online failures are reported without substituting fixtures. Successful earlier pages are retained as a partial scan and the command exits with status 1. Explicit fixture imports are non-authoritative and never deactivate other rows:
+Online failures are reported without substituting fixtures. A source that throws, or a page without a job list, is logged and skipped; earlier pages from that source stay a partial scan and do not deactivate existing jobs. The command exits 0 when at least one source finishes, and exits 1 only when every source fails. Explicit fixture imports are non-authoritative and never deactivate other rows:
 
 ```bash
 npm run scrape -- --offline
 ```
 
 The seeded adapters call the public career JSON used by each employer's own site. No login is required. `ashby_api` remains available. Add another adapter in `src/lib/crawlers/` and register it in `registry.ts`.
+
+Baidu, NetEase, Xiaohongshu, and Bilibili expose searchable social-hire JSON. A one-page dry run kept Baidu and Xiaohongshu frontend roles, and Bilibili's social search returned one frontend role. NetEase's keyword matches bodies as well as titles; on 24 Oct 2026 the only social title containing 前端 was excluded as 偏前端. Huawei's public social gateway does not accept a keyword, so that source pages the SR list and filters frontend titles locally; a missing `result` fails that source only. The same day's full SR catalog (560 posts) had no frontend titles. Kuaishou (HMAC), Feishu SaaS request signatures, and Moka's encrypted job list were left out. Greenhouse and Lever are stable public JSON, but the China-located postings checked on Binance, Airbnb, Spotify, and Palantir did not include Chinese frontend descriptions, so no company was seeded.
 
 ### Scheduling
 
@@ -217,7 +231,7 @@ Set the Vercel production `DATABASE_URL` (and optional `DATABASE_DIRECT_URL`). T
 npm run build:vercel
 ```
 
-It requires Postgres, generates the client, applies migrations, then builds. Configure matching GitHub Actions repository secrets and manually run **Refresh production jobs** before the first deployment. `.github/workflows/scrape.yml` then runs every six hours at minute 23 UTC (scheduling may be delayed), using a concurrency group and shared database lease. Failures appear in Actions; partial results are preserved. Pages revalidate cached database reads after 60 seconds with a 300-second expiration. Preview deployments should use a separate database.
+It requires Postgres, generates the client, applies migrations, then builds. Configure matching GitHub Actions repository secrets and manually run **Refresh production jobs** before the first deployment. `.github/workflows/scrape.yml` then runs every six hours at minute 23 UTC (scheduling may be delayed), using a concurrency group and shared database lease. A failed source is logged and skipped so the workflow can still succeed; the run fails only when every source fails. Partial results are preserved. Pages revalidate cached database reads after 60 seconds with a 300-second expiration. Preview deployments should use a separate database.
 
 ### Ethics
 

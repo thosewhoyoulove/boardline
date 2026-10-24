@@ -12,7 +12,7 @@ export function CompanyShortcut({ slug, name }: { slug: string; name: string }) 
       onClick={(event) => {
         if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
         event.preventDefault();
-        writeBoardQuery({ ...emptyBoardQuery(), company: slug });
+        writeBoardQuery({ ...emptyBoardQuery(), companies: [slug] });
       }}
     >
       <CompanyLogo slug={slug} name={name} />

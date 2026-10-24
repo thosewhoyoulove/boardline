@@ -14,7 +14,7 @@
     "postinstall": "prisma generate",
     "scrape": "tsx scripts/scrape.ts",
     "scrape:watch": "tsx scripts/scrape.ts --watch",
-    "test": "tsx --test src/lib/crawlers/*.test.ts src/lib/db/*.test.ts",
+    "test": "tsx --test src/lib/crawlers/*.test.ts src/lib/db/*.test.ts src/lib/board-query.test.ts",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
     "db:generate": "prisma generate"

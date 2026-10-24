@@ -1,0 +1,36 @@
+{
+  "status": "SUCCESS",
+  "data": {
+    "pageVO": { "totalRows": 3 },
+    "result": [
+      {
+        "jobId": 114001,
+        "jobName": "前端开发工程师",
+        "jobFamilyName": "研发族",
+        "workPlace": "深圳",
+        "cityName": "深圳",
+        "countryName": "中国",
+        "lastUpdateDate": "2026-10-12",
+        "mainBusiness": "负责企业应用的前端架构与组件建设。",
+        "jobRequire": "熟悉 TypeScript 与浏览器性能。能用中文完成设计评审。"
+      },
+      {
+        "jobId": 114002,
+        "jobName": "前端开发工程师",
+        "jobFamilyName": "研发族",
+        "workPlace": "德国",
+        "countryName": "德国",
+        "mainBusiness": "负责海外站点开发。",
+        "jobRequire": "熟悉前端框架，能阅读中文文档。"
+      },
+      {
+        "jobId": 114003,
+        "jobName": "销售经理",
+        "jobFamilyName": "销售族",
+        "workPlace": "上海",
+        "mainBusiness": "负责客户拓展。",
+        "jobRequire": "能用中文完成客户方案。"
+      }
+    ]
+  }
+}

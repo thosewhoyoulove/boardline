@@ -9,6 +9,7 @@ import { withScrapeLease } from "@/lib/crawlers/lease";
 export type ScrapeSourceResult = {
   company: string;
   sourceType: string;
+  /** False only when this source threw and was skipped. Partial scans still succeed. */
   ok: boolean;
   fetched: number;
   upserted: number;
@@ -84,7 +85,7 @@ async function runScrapeWithLease(options: ScrapeOptions, assertHeld: () => Prom
       results.push({
         company: source.company.displayName,
         sourceType: source.sourceType,
-        ok: offline || fetched.authoritative,
+        ok: true,
         status: offline ? "fixture" : fetched.authoritative ? "complete" : "partial",
         fetched: fetched.jobs.length,
         upserted: written.upserted,
@@ -107,9 +108,8 @@ async function runScrapeWithLease(options: ScrapeOptions, assertHeld: () => Prom
     }
   }
 
-  const failures = results.filter((result) => !result.ok).length;
   return {
-    ok: failures === 0,
+    ok: scrapeRefreshUseful(results),
     offline,
     companies: ensured.companies,
     sourcesCreated: ensured.sourcesCreated,
@@ -136,6 +136,15 @@ export function formatScrapeReport(report: ScrapeReport): string {
     );
   }
 
-  lines.push(`完成，耗时 ${(report.elapsedMs / 1000).toFixed(1)}s`);
+  const failed = report.results.filter((result) => result.status === "failed").length;
+  const summary = failed > 0
+    ? `完成，耗时 ${(report.elapsedMs / 1000).toFixed(1)}s；${failed} 个来源失败已跳过，其余来源已写入`
+    : `完成，耗时 ${(report.elapsedMs / 1000).toFixed(1)}s`;
+  lines.push(summary);
   return lines.join("\n");
+}
+
+/** A refresh is useful when at least one source finished, even if another was skipped. */
+export function scrapeRefreshUseful(results: ScrapeSourceResult[]): boolean {
+  return results.length === 0 || results.some((result) => result.status !== "failed");
 }
