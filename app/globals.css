@@ -131,6 +131,61 @@
   }
 }
 
+/* Quiet, rounded scrollbars for the page and nested scroll containers. */
+:root {
+  --scrollbar-thumb: rgb(0 0 0 / 20%);
+  --scrollbar-thumb-hover: rgb(0 0 0 / 34%);
+}
+
+.dark {
+  --scrollbar-thumb: rgb(255 255 255 / 24%);
+  --scrollbar-thumb-hover: rgb(255 255 255 / 40%);
+}
+
+@supports selector(::-webkit-scrollbar) {
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  ::-webkit-scrollbar-track,
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    min-height: 32px;
+    border: 2px solid transparent;
+    border-radius: 999px;
+    background: var(--scrollbar-thumb);
+    background-clip: padding-box;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: var(--scrollbar-thumb-hover);
+  }
+
+  ::-webkit-scrollbar-button {
+    display: none;
+    width: 0;
+    height: 0;
+  }
+}
+
+@supports not selector(::-webkit-scrollbar) {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar-thumb) transparent;
+  }
+}
+
+@media (forced-colors: active) {
+  :root {
+    --scrollbar-thumb: ButtonText;
+    --scrollbar-thumb-hover: Highlight;
+  }
+}
+
 ::selection {
   background: oklch(0.42 0.078 163 / 22%);
 }
