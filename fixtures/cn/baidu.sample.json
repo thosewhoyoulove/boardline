@@ -1,0 +1,26 @@
+{
+  "status": "ok",
+  "data": {
+    "total": "2",
+    "list": [
+      {
+        "postId": "sample-baidu-fe",
+        "name": "前端开发工程师",
+        "postType": "技术",
+        "workPlace": "北京市",
+        "publishDate": "2026-10-01",
+        "updateDate": "2026-10-20",
+        "workContent": "负责搜索产品的页面开发。",
+        "serviceCondition": "熟悉 TypeScript。能独立完成中文技术方案。"
+      },
+      {
+        "postId": "sample-baidu-backend",
+        "name": "后端开发工程师",
+        "postType": "技术",
+        "workPlace": "北京市",
+        "workContent": "负责服务端开发。",
+        "serviceCondition": "熟悉 Java，能阅读中文设计文档。"
+      }
+    ]
+  }
+}

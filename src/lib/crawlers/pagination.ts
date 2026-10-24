@@ -2,7 +2,14 @@ export type Page = { items: unknown[]; total?: number };
 export type PageCollection = { items: unknown[]; pages: number; complete: boolean; note: string };
 
 export function pageTotal(...values: unknown[]): number | undefined {
-  return values.find((value): value is number => typeof value === "number" && Number.isSafeInteger(value) && value >= 0);
+  for (const value of values) {
+    if (typeof value === "number" && Number.isSafeInteger(value) && value >= 0) return value;
+    if (typeof value === "string" && /^\d+$/.test(value)) {
+      const number = Number(value);
+      if (Number.isSafeInteger(number)) return number;
+    }
+  }
+  return undefined;
 }
 
 /** Only exhausted lists permit reconciliation; a successful first page does not. */

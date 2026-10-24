@@ -52,6 +52,43 @@ export function parseChineseDate(value: string | null | undefined): Date | null 
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
+export function parsePostedAt(value: unknown): Date | null {
+  if (typeof value === "number") return parseEpoch(value);
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  if (/^\d+$/.test(trimmed)) return parseEpoch(trimmed);
+  return parseChineseDate(trimmed);
+}
+
+/** Split a city field that may be a string, a list, or `{ name }` objects. */
+export function splitPlaces(value: unknown): string[] {
+  if (Array.isArray(value)) return uniqueLocations(value.flatMap((item) => splitPlaces(item)));
+  if (value && typeof value === "object") {
+    const record = value as { name?: unknown; cityName?: unknown; addressDetail?: unknown };
+    return splitPlaces(record.name ?? record.cityName ?? record.addressDetail);
+  }
+  if (typeof value !== "string" && typeof value !== "number") return [];
+  return uniqueLocations(String(value).split(/[,，、]/));
+}
+
+/** Pull responsibility and requirement out of a single Chinese JD blob. */
+export function splitRoleText(value: string | null | undefined): {
+  responsibility: string | null;
+  requirement: string | null;
+} {
+  const text = value?.trim() ?? "";
+  if (!text) return { responsibility: null, requirement: null };
+  const match = text.match(
+    /(?:工作职责|岗位职责|职位职责)\s*[:：]?([\s\S]*?)(?:工作要求|任职要求|职位要求)\s*[:：]?([\s\S]*)/,
+  );
+  if (!match) return { responsibility: null, requirement: text };
+  return {
+    responsibility: match[1]?.trim() || null,
+    requirement: match[2]?.trim() || text,
+  };
+}
+
 export function parseEpoch(value: unknown): Date | null {
   const parsed = typeof value === "number" ? value : typeof value === "string" ? Number(value) : NaN;
   if (!Number.isFinite(parsed) || parsed <= 0) return null;

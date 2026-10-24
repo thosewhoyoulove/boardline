@@ -51,7 +51,12 @@ export function JobBoard({ jobs, companies, lastUpdatedAt }: {
   if (jobs.length === 0) return <ScrapeHint />;
 
   const matched = filterJobs(jobs, query);
-  const companyName = companies.find((company) => company.slug === query.company)?.displayName;
+  const selectedCompanies = companies.filter((company) => query.companies.includes(company.slug));
+  const companyName = selectedCompanies.length === 0
+    ? null
+    : selectedCompanies.length <= 3
+      ? selectedCompanies.map((company) => company.displayName).join("、")
+      : `${selectedCompanies.length} 家公司`;
   const pages = Math.max(1, Math.ceil(matched.length / PAGE_SIZE));
   const page = Math.min(query.page, pages);
   const visible = matched.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
