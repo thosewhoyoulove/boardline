@@ -1,0 +1,25 @@
+{
+  "code": 0,
+  "data": {
+    "total": 2,
+    "list": [
+      {
+        "id": 25021,
+        "positionName": "资深前端工程师",
+        "postCodeName": "技术类",
+        "workLocation": "上海",
+        "pushTime": "2026-01-04 11:05:48",
+        "recruitType": 0,
+        "positionDescription": "工作职责:\n负责业务系统的前端开发与组件库建设。\n工作要求:\n本科及以上，熟悉 React，能独立完成中文技术方案。"
+      },
+      {
+        "id": 25022,
+        "positionName": "后端开发工程师",
+        "postCodeName": "技术类",
+        "workLocation": "上海",
+        "recruitType": 0,
+        "positionDescription": "工作职责:\n负责服务端开发。\n工作要求:\n熟悉 Go，能阅读中文设计文档。"
+      }
+    ]
+  }
+}

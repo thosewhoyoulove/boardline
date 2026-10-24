@@ -9,6 +9,7 @@ import { ensureDemoCompanies } from "@/lib/db/seed";
 import { upsertNormalizedJobs } from "@/lib/db/upsert";
 import { normalizeMeituanJobs } from "@/lib/crawlers/meituan_api";
 import { runScrape } from "@/lib/crawlers/run";
+import { demoCompanies } from "@/lib/db/demo-companies";
 
 const directory = mkdtempSync(path.join(os.tmpdir(), "boardline-test-"));
 const oldUrl = process.env.DATABASE_URL;
@@ -89,7 +90,7 @@ test("database lease blocks concurrent runs, releases after failure and recovers
 test("offline scrape runs end-to-end and identifies fixture results", async () => {
   const report = await runScrape({ offline: true });
   assert.equal(report.ok, true);
-  assert.equal(report.results.length, 8);
-  assert.equal(await prisma.job.count(), 8);
+  assert.equal(report.results.length, demoCompanies.length);
+  assert.equal(await prisma.job.count(), demoCompanies.length);
   assert.ok(report.results.every((result) => result.status === "fixture" && !result.authoritative && result.deactivated === 0));
 });
