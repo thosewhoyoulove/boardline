@@ -1,10 +1,12 @@
 import { JobFilters } from "@/components/job-filters";
+import { cacheLife } from "next/cache";
 import { getPrisma } from "@/lib/db/client";
 import Link from "next/link";
 import { CompanyShortcut } from "@/components/company-shortcut";
 
 async function loadFilterCompanies() {
   "use cache";
+  cacheLife({ stale: 60, revalidate: 60, expire: 300 });
   return getPrisma().company.findMany({
     where: { active: true },
     orderBy: { displayName: "asc" },

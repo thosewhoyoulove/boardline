@@ -1,4 +1,5 @@
 import { alibabaApiAdapter } from "@/lib/crawlers/alibaba_api";
+import { bilibiliApiAdapter, neteaseApiAdapter } from "@/lib/crawlers/additional-employers";
 import { ashbyApiAdapter } from "@/lib/crawlers/ashby_api";
 import { bytedanceApiAdapter } from "@/lib/crawlers/bytedance_api";
 import { ctripApiAdapter } from "@/lib/crawlers/ctrip_api";
@@ -10,6 +11,8 @@ import { xiaomiApiAdapter } from "@/lib/crawlers/xiaomi_api";
 import type { CrawlerAdapter } from "@/lib/crawlers/types";
 
 const adapters: Record<string, CrawlerAdapter> = {
+  [neteaseApiAdapter.sourceType]: neteaseApiAdapter,
+  [bilibiliApiAdapter.sourceType]: bilibiliApiAdapter,
   [ashbyApiAdapter.sourceType]: ashbyApiAdapter,
   [tencentApiAdapter.sourceType]: tencentApiAdapter,
   [bytedanceApiAdapter.sourceType]: bytedanceApiAdapter,

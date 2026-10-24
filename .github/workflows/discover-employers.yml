@@ -1,0 +1,51 @@
+name: Discover official employers
+
+on:
+  schedule:
+    # Daily at 04:41 UTC / 12:41 Beijing time. GitHub may delay scheduled runs.
+    - cron: "41 4 * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Only validate sources; do not add companies or jobs"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-scrape
+  cancel-in-progress: false
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DATABASE_DIRECT_URL: ${{ secrets.DATABASE_DIRECT_URL }}
+      SCRAPE_MAX_PAGES: "20"
+      SCRAPE_REQUEST_DELAY_MS: "1000"
+      SCRAPE_RETRIES: "2"
+      SCRAPE_TIMEOUT_MS: "20000"
+      DISCOVERY_DRY_RUN: ${{ inputs.dry_run || 'false' }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Check database configuration
+        run: node -e 'if (!/^postgres(ql)?:\/\//.test(process.env.DATABASE_URL || "")) { console.error("Missing production PostgreSQL DATABASE_URL"); process.exit(1); }'
+      - run: npm ci
+      - run: npm run db:deploy
+      - name: Discover and validate official postings
+        run: |
+          if [ "$DISCOVERY_DRY_RUN" = "true" ]; then
+            npx tsx scripts/discover-employers.ts --dry-run
+          else
+            npx tsx scripts/discover-employers.ts
+          fi

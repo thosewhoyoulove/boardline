@@ -238,6 +238,7 @@
 .employer-shortcut { display: flex; flex-direction: column; align-items: center; gap: 8px; border-radius: 10px; padding: 4px 0; font-size: 12px; }
 .employer-shortcut:hover .company-monogram { transform: translateY(-3px); box-shadow: 0 5px 12px #18243c0d; }
 .company-monogram { display: inline-flex; align-items: center; justify-content: center; width: 42px; height: 42px; flex-shrink: 0; border-radius: 12px; background: #fff; color: #365bc0; font-size: 19px; font-weight: 700; transition: transform .16s ease, box-shadow .16s ease; }
+.company-logo img { width: 76%; height: 76%; object-fit: contain; }
 .company-monogram[data-company=tencent] { background: #e7efff; color: #2864cf; }
 .company-monogram[data-company=bytedance] { background: #e8f5fa; color: #246b8b; }
 .company-monogram[data-company=xiaomi], .company-monogram[data-company=alibaba] { background: #fff0e6; color: #c86625; }

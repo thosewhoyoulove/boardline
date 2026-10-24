@@ -1,5 +1,7 @@
 "use client";
 
+import { CompanyLogo } from "@/components/company-logo";
+
 import { emptyBoardQuery, writeBoardQuery } from "@/lib/board-query";
 
 export function CompanyShortcut({ slug, name }: { slug: string; name: string }) {
@@ -13,7 +15,7 @@ export function CompanyShortcut({ slug, name }: { slug: string; name: string }) 
         writeBoardQuery({ ...emptyBoardQuery(), company: slug });
       }}
     >
-      <span className="company-monogram" data-company={slug} aria-hidden="true">{name.slice(0, 1)}</span>
+      <CompanyLogo slug={slug} name={name} />
       <span>{name}</span>
     </a>
   );
