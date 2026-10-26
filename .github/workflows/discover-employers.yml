@@ -49,3 +49,9 @@ jobs:
           else
             npx tsx scripts/discover-employers.ts
           fi
+      - name: Invalidate production page cache
+        if: inputs.dry_run != true
+        env:
+          REVALIDATE_SECRET: ${{ secrets.REVALIDATE_SECRET }}
+          REVALIDATE_URL: ${{ vars.REVALIDATE_URL }}
+        run: bash scripts/revalidate-production.sh

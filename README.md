@@ -142,15 +142,20 @@ SCRAPE_DEACTIVATE_AFTER_HOURS=48
    npm run build:vercel
    ```
 
-构建会检查生产数据库、生成对应客户端、执行 Postgres 迁移，再构建页面；缺少 Postgres 配置会失败，避免发布旧 SQLite 快照。生产页面只读取持久数据库，数据缓存每 60 秒可重新验证、最长 300 秒后过期（刷新页面时读取）。
+构建会检查生产数据库、生成对应客户端、执行 Postgres 迁移，再构建页面；缺少 Postgres 配置会失败，避免发布旧 SQLite 快照。生产页面只读取持久数据库。职位列表、公司目录和职位详情仍使用 `use cache`（每 60 秒可重新验证、最长 300 秒后过期）。抓取成功后，Actions 会立刻 `POST /api/revalidate`，按需丢掉这些缓存和已生成的页面，下一次打开 `/`、`/companies` 或职位详情时读取新数据。
 
 ### GitHub Actions 定时抓取
 
 1. 在仓库 Settings → Secrets and variables → Actions 设置 `DATABASE_URL`，与 Vercel 指向同一个生产数据库。可选设置 `DATABASE_DIRECT_URL`。
-2. 将 `.github/workflows/scrape.yml` 发布到默认分支，启用 Actions。
-3. 首次部署前，在 Actions → Refresh production jobs → Run workflow 手动运行一次；确认抓取日志和网页数据，再启用生产部署。
+2. 生成一个随机字符串（例如 `openssl rand -base64 32`），同时写入两处，值必须完全一致：
+   - Vercel 项目的 Production 环境变量 `REVALIDATE_SECRET`（运行时可读，不要加 `NEXT_PUBLIC_` 前缀）。保存后重新部署生产，路由才会带上这个变量。
+   - GitHub Actions 仓库 secret `REVALIDATE_SECRET`。
+3. 将 `.github/workflows/scrape.yml` 发布到默认分支，启用 Actions。生产站点需要已经包含 `POST /api/revalidate`。
+4. 首次部署前，在 Actions → Refresh production jobs → Run workflow 手动运行一次；确认抓取日志末尾的重验响应是 `{"revalidated":true,...}`，再打开网页核对数据。
 
-之后北京时间每天约 02:23、08:23、14:23、20:23 自动抓取（GitHub 调度可能延迟）。任务先部署数据库迁移，再运行抓取；GitHub 并发组和数据库租约避免重复任务。单个来源失败会写在日志里并跳过，不再让整次刷新失败；全部来源都失败时工作流仍显示失败。已写入的数据会保留。检查 Actions 日志和职位详情的「最近发现」判断更新是否正常，列表日期优先显示招聘方的发布日期。任务在 GitHub 执行，无需本地电脑常开，也不依赖 Vercel 抓取接口。
+抓取（以及非 dry-run 的雇主发现）成功后，工作流执行 `scripts/revalidate-production.sh`。脚本用 `Authorization: Bearer $REVALIDATE_SECRET` 请求 `https://boardline.vercel.app/api/revalidate`（可用 Actions variable `REVALIDATE_URL` 覆盖）。接口校验密钥后调用 `revalidateTag("published-jobs", { expire: 0 })`，并 `revalidatePath` 清掉 `/`、`/companies`、`/jobs/[id]` 和根布局上的页面缓存。`expire: 0` 表示下一次请求直接未命中，而不是继续把抓取前的 HTML 当作新鲜内容返回。密钥缺失或校验失败时这一步失败，避免静默留下旧缓存。
+
+之后北京时间每天约 02:23、08:23、14:23、20:23 自动抓取（GitHub 调度可能延迟）。任务先部署数据库迁移，再运行抓取，成功后再让生产页面缓存失效；GitHub 并发组和数据库租约避免重复任务。单个来源失败会写在日志里并跳过，不再让整次刷新失败；全部来源都失败时工作流仍显示失败，也不会去清缓存。已写入的数据会保留。检查 Actions 日志和职位详情的「最近发现」判断更新是否正常，列表日期优先显示招聘方的发布日期。抓取在 GitHub 执行，无需本地电脑常开。网站不提供抓取接口，只提供上面的缓存失效接口。
 
 ### 伦理与使用边界
 
@@ -231,7 +236,9 @@ Set the Vercel production `DATABASE_URL` (and optional `DATABASE_DIRECT_URL`). T
 npm run build:vercel
 ```
 
-It requires Postgres, generates the client, applies migrations, then builds. Configure matching GitHub Actions repository secrets and manually run **Refresh production jobs** before the first deployment. `.github/workflows/scrape.yml` then runs every six hours at minute 23 UTC (scheduling may be delayed), using a concurrency group and shared database lease. A failed source is logged and skipped so the workflow can still succeed; the run fails only when every source fails. Partial results are preserved. Pages revalidate cached database reads after 60 seconds with a 300-second expiration. Preview deployments should use a separate database.
+It requires Postgres, generates the client, applies migrations, then builds. Configure matching GitHub Actions repository secrets and manually run **Refresh production jobs** before the first deployment. `.github/workflows/scrape.yml` then runs every six hours at minute 23 UTC (scheduling may be delayed), using a concurrency group and shared database lease. A failed source is logged and skipped so the workflow can still succeed; the run fails only when every source fails. Partial results are preserved. Cached board reads can still refresh on a 60-second revalidate and 300-second expiration. After a successful scrape (and after a non-dry-run employer discovery), the workflow POSTs to `https://boardline.vercel.app/api/revalidate` so the next visit does not keep the pre-scrape HTML.
+
+Set the same `REVALIDATE_SECRET` on Vercel Production (runtime, not `NEXT_PUBLIC_`) and as a GitHub Actions repository secret. Redeploy production after adding the Vercel variable. Optional Actions variable `REVALIDATE_URL` overrides the endpoint. The route checks `Authorization: Bearer`, then calls `revalidateTag("published-jobs", { expire: 0 })` and `revalidatePath` for `/`, `/companies`, `/jobs/[id]`, and the root layout. `expire: 0` makes the next request a cache miss. The workflow step fails if the secret is missing or the site rejects it. Preview deployments should use a separate database.
 
 ### Ethics
 
