@@ -40,3 +40,8 @@ jobs:
       - run: npm run db:deploy
       - name: Fetch official job postings
         run: npm run scrape
+      - name: Invalidate production page cache
+        env:
+          REVALIDATE_SECRET: ${{ secrets.REVALIDATE_SECRET }}
+          REVALIDATE_URL: ${{ vars.REVALIDATE_URL }}
+        run: bash scripts/revalidate-production.sh

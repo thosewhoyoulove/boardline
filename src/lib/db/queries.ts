@@ -1,7 +1,8 @@
 import "server-only";
-import { cacheLife } from "next/cache";
+import { cacheLife, cacheTag } from "next/cache";
 
 import { isFrontendRole } from "@/lib/crawlers/text";
+import { PUBLISHED_JOBS_CACHE_TAG } from "@/lib/db/cache-tags";
 import { getPrisma } from "@/lib/db/client";
 
 export type JobListItem = {
@@ -53,6 +54,7 @@ export function readLocations(value: unknown): string[] {
 
 export async function getPublishedBoard(): Promise<PublishedBoard> {
   "use cache";
+  cacheTag(PUBLISHED_JOBS_CACHE_TAG);
   cacheLife({ stale: 60, revalidate: 60, expire: 300 });
   const prisma = getPrisma();
   const [rows, companies] = await Promise.all([
@@ -113,6 +115,7 @@ export async function listStaticJobIds(): Promise<string[]> {
 // Cached at build time so each known job is a complete page, not a Vercel partial shell.
 export async function getJobDetail(id: string): Promise<JobDetail | null> {
   "use cache";
+  cacheTag(PUBLISHED_JOBS_CACHE_TAG);
   cacheLife({ stale: 60, revalidate: 60, expire: 300 });
   const job = await getPrisma().job.findUnique({
     where: { id },
@@ -145,6 +148,7 @@ export async function getJobDetail(id: string): Promise<JobDetail | null> {
 
 export async function getCompanyDirectory(): Promise<CompanyCard[]> {
   "use cache";
+  cacheTag(PUBLISHED_JOBS_CACHE_TAG);
   cacheLife({ stale: 60, revalidate: 60, expire: 300 });
   const companies = await getPrisma().company.findMany({
     where: { active: true },

@@ -1,10 +1,12 @@
 import { CompanyFilter } from "@/components/company-filter";
 import { JobFilters } from "@/components/job-filters";
-import { cacheLife } from "next/cache";
+import { cacheLife, cacheTag } from "next/cache";
+import { PUBLISHED_JOBS_CACHE_TAG } from "@/lib/db/cache-tags";
 import { getPrisma } from "@/lib/db/client";
 
 async function loadFilterCompanies() {
   "use cache";
+  cacheTag(PUBLISHED_JOBS_CACHE_TAG);
   cacheLife({ stale: 60, revalidate: 60, expire: 300 });
   return getPrisma().company.findMany({
     where: { active: true },
